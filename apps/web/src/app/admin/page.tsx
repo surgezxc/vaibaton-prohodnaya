@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { LoginCard } from "@/components/login-card";
 import { Notice, Panel, RoleWarning, Shell } from "@/components/shell";
 import { useSession } from "@/components/use-session";
@@ -74,6 +74,9 @@ export default function AdminPage() {
 function AdminDesk({ session }: { session: Session }) {
   const [draft, setDraft] = useState<Draft>(emptyDraft);
   const [file, setFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const previewRef = useRef<string | null>(null);
   const [people, setPeople] = useState<Person[] | null>(null);
   const [listError, setListError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
@@ -101,6 +104,30 @@ function AdminDesk({ session }: { session: Session }) {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    return () => {
+      if (previewRef.current) URL.revokeObjectURL(previewRef.current);
+    };
+  }, []);
+
+  function clearPhoto() {
+    setFile(null);
+    if (previewRef.current) {
+      URL.revokeObjectURL(previewRef.current);
+      previewRef.current = null;
+    }
+    setPreviewUrl(null);
+    if (fileRef.current) fileRef.current.value = "";
+  }
+
+  function assignPhoto(next: File | null) {
+    if (previewRef.current) URL.revokeObjectURL(previewRef.current);
+    const url = next ? URL.createObjectURL(next) : null;
+    previewRef.current = url;
+    setPreviewUrl(url);
+    setFile(next);
+  }
+
   function fill(person: Person) {
     setDraft({
       id: person.id,
@@ -113,7 +140,7 @@ function AdminDesk({ session }: { session: Session }) {
       issuer: person.issuer ?? "",
       valid_until: person.valid_until ?? "",
     });
-    setFile(null);
+    clearPhoto();
     setFormError(null);
     setSaved(null);
   }
@@ -190,7 +217,7 @@ function AdminDesk({ session }: { session: Session }) {
       return;
     }
     setSaved(serverReason(response.json, "Карточка сохранена."));
-    setFile(null);
+    clearPhoto();
     if (!draft.id && response.json && typeof response.json.id === "string") {
       setDraft((current) => ({ ...current, id: String(response.json?.id) }));
     }
@@ -230,15 +257,38 @@ function AdminDesk({ session }: { session: Session }) {
               onChange={(event) => setDraft({ ...draft, valid_until: event.target.value })}
             />
           </label>
-          <label className="block text-sm font-medium">
-            Фото эталона
+          <div className="grid gap-2">
+            <p className="text-sm font-medium">Фото эталона</p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                className="min-h-12 rounded-xl border border-emerald-900 bg-white px-4 font-semibold text-emerald-950"
+                type="button"
+                onClick={() => fileRef.current?.click()}
+              >
+                Прикрепить фото
+              </button>
+              <button
+                className="min-h-12 rounded-xl border border-stone-300 bg-white px-4 font-semibold text-stone-900"
+                type="button"
+                onClick={clearPhoto}
+              >
+                Удалить фото
+              </button>
+            </div>
             <input
-              className="mt-1 block w-full text-sm"
+              ref={fileRef}
+              className="sr-only"
               type="file"
               accept="image/*"
-              onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+              aria-label="Прикрепить фото"
+              onChange={(event) => assignPhoto(event.target.files?.[0] ?? null)}
             />
-          </label>
+            {previewUrl ? (
+              <img src={previewUrl} alt="Выбранное фото" className="h-36 w-36 rounded-xl border border-stone-200 object-cover" />
+            ) : (
+              <p className="text-sm text-stone-500">Фото не выбрано</p>
+            )}
+          </div>
           <p className="text-xs text-stone-500">Кнопка выше берёт sub учётки worker из Keycloak. Новая карточка уходит на сервер вместе с фото: эталон считает сервис лиц. Если лиц на фото нет, несколько или сервис не готов, карточка не сохранится.</p>
           {formError ? (
             <p className="text-sm text-red-800" role="alert">
@@ -255,7 +305,7 @@ function AdminDesk({ session }: { session: Session }) {
               type="button"
               onClick={() => {
                 setDraft(emptyDraft());
-                setFile(null);
+                clearPhoto();
                 setFormError(null);
                 setSaved(null);
               }}
