@@ -48,9 +48,16 @@ def main():
     wrong_result = call("compare", {"embedding": embedding, "image_base64": base64.b64encode(wrong.read_bytes()).decode()})
     assert own_result["face_count"] == 1 and own_result["match"] and own_result["live"], own_result
     assert wrong_result["face_count"] == 1 and not wrong_result["match"], wrong_result
+    invalid_cases = [("embed", {"image_base64": "not-base64"}),
+                     ("compare", {**photo, "embedding": [0] * 512}),
+                     ("compare", {**photo, "embedding": [1]})]
+    for method, body in invalid_cases:
+        response = requests.post(args.url.rstrip("/") + "/" + method, json=body, timeout=30)
+        assert response.status_code == 422, (method, response.status_code)
     report = {"real_models": True, "saved_photos_not_camera": True, "count_zero": 0, "count_one": 1,
               "own_file": own.name, "wrong_file": wrong.name,
               "count_two": 2, "embedding_size": len(embedding), "own": own_result, "wrong": wrong_result,
+              "invalid_inputs_refused": len(invalid_cases), "embedding_pipeline": "buffalo_l_flip_clahe_v1",
               "elapsed_seconds": round(time.monotonic() - started, 2)}
     output = Path(".reports/http-smoke.json")
     output.parent.mkdir(exist_ok=True)

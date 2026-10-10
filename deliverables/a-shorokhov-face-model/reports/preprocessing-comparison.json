@@ -1,0 +1,226 @@
+{
+  "calibration_only": true,
+  "same_package_used_to_select_pipeline": true,
+  "results": [
+    {
+      "experiment": "variants",
+      "method": "base",
+      "threshold": 0.732,
+      "accepted_own": 31,
+      "own_total": 52,
+      "foreign_pairs": 468,
+      "false_accepts": 0,
+      "max_wrong_score": 0.7303656776526898
+    },
+    {
+      "experiment": "variants",
+      "method": "flip",
+      "threshold": 0.733,
+      "accepted_own": 33,
+      "own_total": 52,
+      "foreign_pairs": 468,
+      "false_accepts": 0,
+      "max_wrong_score": 0.7313249163884943
+    },
+    {
+      "experiment": "variants",
+      "method": "clahe",
+      "threshold": 0.672,
+      "accepted_own": 34,
+      "own_total": 52,
+      "foreign_pairs": 468,
+      "false_accepts": 0,
+      "max_wrong_score": 0.6705651451036295
+    },
+    {
+      "experiment": "variants",
+      "method": "clahe_flip",
+      "threshold": 0.663,
+      "accepted_own": 35,
+      "own_total": 52,
+      "foreign_pairs": 468,
+      "false_accepts": 0,
+      "max_wrong_score": 0.6617926819775961
+    },
+    {
+      "experiment": "variants",
+      "method": "ensemble",
+      "threshold": 0.688,
+      "accepted_own": 41,
+      "own_total": 52,
+      "foreign_pairs": 468,
+      "false_accepts": 0,
+      "max_wrong_score": 0.6862683211090032
+    },
+    {
+      "experiment": "alignment",
+      "method": "320_base",
+      "threshold": 0.724,
+      "accepted_own": 35,
+      "own_total": 52,
+      "foreign_pairs": 468,
+      "false_accepts": 0,
+      "max_wrong_score": 0.7228052942712768
+    },
+    {
+      "experiment": "alignment",
+      "method": "320_flip",
+      "threshold": 0.725,
+      "accepted_own": 36,
+      "own_total": 52,
+      "foreign_pairs": 468,
+      "false_accepts": 0,
+      "max_wrong_score": 0.7237274220882695
+    },
+    {
+      "experiment": "alignment",
+      "method": "320_ensemble",
+      "threshold": 0.702,
+      "accepted_own": 38,
+      "own_total": 52,
+      "foreign_pairs": 468,
+      "false_accepts": 0,
+      "max_wrong_score": 0.7006549842093439
+    },
+    {
+      "experiment": "alignment",
+      "method": "1280_base",
+      "threshold": 0.728,
+      "accepted_own": 35,
+      "own_total": 52,
+      "foreign_pairs": 468,
+      "false_accepts": 0,
+      "max_wrong_score": 0.7264797650060736
+    },
+    {
+      "experiment": "alignment",
+      "method": "1280_flip",
+      "threshold": 0.734,
+      "accepted_own": 35,
+      "own_total": 52,
+      "foreign_pairs": 468,
+      "false_accepts": 0,
+      "max_wrong_score": 0.7321749129561875
+    },
+    {
+      "experiment": "alignment",
+      "method": "1280_ensemble",
+      "threshold": 0.693,
+      "accepted_own": 39,
+      "own_total": 52,
+      "foreign_pairs": 468,
+      "false_accepts": 0,
+      "max_wrong_score": 0.6914431685435494
+    },
+    {
+      "experiment": "lighting",
+      "method": "base",
+      "threshold": 0.733,
+      "accepted_own": 33,
+      "own_total": 52,
+      "foreign_pairs": 468,
+      "false_accepts": 0,
+      "max_wrong_score": 0.7313249163884943
+    },
+    {
+      "experiment": "lighting",
+      "method": "gray",
+      "threshold": 0.707,
+      "accepted_own": 38,
+      "own_total": 52,
+      "foreign_pairs": 468,
+      "false_accepts": 0,
+      "max_wrong_score": 0.7057885126684547
+    },
+    {
+      "experiment": "lighting",
+      "method": "gamma0.5",
+      "threshold": 0.721,
+      "accepted_own": 37,
+      "own_total": 52,
+      "foreign_pairs": 468,
+      "false_accepts": 0,
+      "max_wrong_score": 0.7193840090194652
+    },
+    {
+      "experiment": "lighting",
+      "method": "gamma1.5",
+      "threshold": 0.727,
+      "accepted_own": 35,
+      "own_total": 52,
+      "foreign_pairs": 468,
+      "false_accepts": 0,
+      "max_wrong_score": 0.725363172692471
+    },
+    {
+      "experiment": "lighting",
+      "method": "clahe1_8",
+      "threshold": 0.663,
+      "accepted_own": 35,
+      "own_total": 52,
+      "foreign_pairs": 468,
+      "false_accepts": 0,
+      "max_wrong_score": 0.6617926819775961
+    },
+    {
+      "experiment": "lighting",
+      "method": "clahe4_8",
+      "threshold": 0.739,
+      "accepted_own": 30,
+      "own_total": 52,
+      "foreign_pairs": 468,
+      "false_accepts": 0,
+      "max_wrong_score": 0.7370269434679766
+    },
+    {
+      "experiment": "lighting",
+      "method": "clahe2_4",
+      "threshold": 0.714,
+      "accepted_own": 36,
+      "own_total": 52,
+      "foreign_pairs": 468,
+      "false_accepts": 0,
+      "max_wrong_score": 0.7123925329453901
+    },
+    {
+      "experiment": "lighting",
+      "method": "clahe2_16",
+      "threshold": 0.777,
+      "accepted_own": 24,
+      "own_total": 52,
+      "foreign_pairs": 468,
+      "false_accepts": 0,
+      "max_wrong_score": 0.7755189751135183
+    },
+    {
+      "experiment": "roi",
+      "method": "base",
+      "threshold": 0.731,
+      "accepted_own": 35,
+      "own_total": 52,
+      "foreign_pairs": 468,
+      "false_accepts": 0,
+      "max_wrong_score": 0.7295584230833437
+    },
+    {
+      "experiment": "roi",
+      "method": "flip",
+      "threshold": 0.732,
+      "accepted_own": 35,
+      "own_total": 52,
+      "foreign_pairs": 468,
+      "false_accepts": 0,
+      "max_wrong_score": 0.7304143617492536
+    },
+    {
+      "experiment": "roi",
+      "method": "ensemble",
+      "threshold": 0.704,
+      "accepted_own": 33,
+      "own_total": 52,
+      "foreign_pairs": 468,
+      "false_accepts": 0,
+      "max_wrong_score": 0.7028195276365281
+    }
+  ]
+}

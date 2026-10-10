@@ -1,0 +1,50 @@
+{
+  "fixture": true,
+  "provider": "ollama",
+  "status": "ok",
+  "results": [
+    {
+      "tool": "summary",
+      "empty": false,
+      "status": "ok",
+      "text": "Период: 2026-10-09 — 2026-10-10. Людей за выбранный период: 12. Смен за выбранный период: 14. Отказов за выбранный период: 0.",
+      "elapsed_ms": 2877
+    },
+    {
+      "tool": "who_inside",
+      "empty": false,
+      "status": "ok",
+      "text": "Сейчас на объекте: 1 человек. Открытая смена: Тестовый сотрудник, начало — 2026-10-10T08:00:00Z.",
+      "elapsed_ms": 1841
+    },
+    {
+      "tool": "under_four_hours",
+      "empty": false,
+      "status": "ok",
+      "text": "За 2026-10-09 меньше 4 часов: 1 человек. Время работы Тестовый сотрудник: 7200 секунд.",
+      "elapsed_ms": 2200
+    },
+    {
+      "tool": "busiest_zone",
+      "empty": false,
+      "status": "ok",
+      "text": "Дата посещений: 2026-10-09. Максимум посещений у зоны «Тестовая зона»: 7.",
+      "elapsed_ms": 2141
+    },
+    {
+      "tool": "denials",
+      "empty": false,
+      "status": "ok",
+      "text": "С 2026-10-03 по 2026-10-10 отказов: 2. Причина «Лицо не совпало»: отказов 2.",
+      "elapsed_ms": 1829
+    },
+    {
+      "tool": "who_inside",
+      "empty": true,
+      "status": "ok",
+      "text": "Данных нет.",
+      "elapsed_ms": 0
+    }
+  ],
+  "elapsed_ms": 10889
+}

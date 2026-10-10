@@ -43,6 +43,24 @@ class FaceTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 service.embed(self.image)
 
+    def test_same_recognizer_combines_four_views_and_rejects_invalid_output(self):
+        service = FaceService.__new__(FaceService)
+        model = Mock(input_size=(112, 112))
+        model.get_feat.return_value = np.tile(self.vector, (4, 1))
+        service.analysis = Mock(models={"recognition": model})
+        landmarks = np.array([[38.2946, 51.6963], [73.5318, 51.5014], [56.0252, 71.7366],
+                              [41.5493, 92.3655], [70.7299, 92.2041]], dtype=np.float32)
+        result = service.recognition_embedding(self.image, landmarks)
+        np.testing.assert_allclose(result, self.vector)
+        crops = model.get_feat.call_args.args[0]
+        self.assertEqual(len(crops), 4)
+        np.testing.assert_array_equal(crops[1], cv2.flip(crops[0], 1))
+        np.testing.assert_array_equal(crops[3], cv2.flip(crops[2], 1))
+        for value in [np.zeros((4, 512)), np.full((4, 512), np.nan), np.ones((3, 512))]:
+            model.get_feat.return_value = value
+            with self.assertRaises(ValueError):
+                service.recognition_embedding(self.image, landmarks)
+
     def test_passage_rejects_zero_many_and_fake(self):
         service = FaceService.__new__(FaceService)
         service.threshold = 0.45

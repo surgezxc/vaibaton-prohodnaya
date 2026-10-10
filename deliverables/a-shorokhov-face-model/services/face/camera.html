@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="ru">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Проверка камеры — модуль лиц</title>
+<style>
+body{font:17px system-ui;margin:24px auto;padding:0 20px;max-width:850px;background:#f5f7fa;color:#172337}
+h1{font-size:28px}video{width:100%;max-height:440px;background:#101827;border-radius:12px;transform:scaleX(-1)}
+button,input{font:inherit;margin:6px 6px 6px 0}button{padding:10px 14px;cursor:pointer}button:disabled{cursor:default}
+#status{white-space:pre-wrap;padding:16px;background:white;border-radius:8px}li{margin:8px 0}small{display:block}
+</style>
+<h1>Проверка камеры</h1>
+<p>Включи камеру, сними эталон с одним лицом и проверь новые кадры. Это проверка модуля лиц; разрешение прохода выдаёт общий сервер.</p>
+<video id="video" autoplay muted playsinline aria-label="Изображение камеры"></video>
+<div>
+<button id="start">Включить камеру</button>
+<button id="stop" disabled>Выключить камеру</button>
+<button id="enroll" disabled>Снять мой эталон</button>
+<button id="compare" disabled>Проверить новый кадр</button>
+<button id="clear" disabled>Удалить эталон</button>
+</div>
+<p><label>Или выбрать фото эталона: <input id="reference" type="file" accept="image/jpeg,image/png,image/webp"></label></p>
+<p><label>Проверить сохранённый кадр: <input id="probe" type="file" accept="image/jpeg,image/png,image/webp" disabled></label></p>
+<small>Фото и эталон не сохраняются: вектор живёт до удаления или перезагрузки страницы. Кадры обрабатывает локальный сервис. Для штатной записи в БД используется админка общего приложения.</small>
+<p id="status" role="status" aria-live="polite">Камера выключена. Эталон не задан.</p>
+<button id="download" disabled>Скачать отчёт без фотографий</button>
+<ol id="history"></ol>
+<script type="module" src="/camera.js"></script>
+</html>

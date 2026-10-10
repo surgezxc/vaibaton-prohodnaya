@@ -1,0 +1,52 @@
+{
+  "checked_at": "2026-10-10T11:44:12.840595+00:00",
+  "face_pipeline": "buffalo_l_flip_clahe_v1",
+  "threshold": 0.69,
+  "unit_tests": {
+    "face": 6,
+    "model": 9,
+    "camera_behavior_with_mock_video": 3,
+    "passed": 18
+  },
+  "typescript_build": "passed",
+  "face_http_smoke": "passed",
+  "face_http_package": {
+    "comparisons": 526,
+    "genuine_accepted": 41,
+    "genuine_total": 52,
+    "foreign_accepted": 0,
+    "foreign_total": 468,
+    "count_rejections": 6,
+    "processing_errors": 0,
+    "original_target": 45,
+    "original_target_met": false,
+    "calibration_not_independent_test": true
+  },
+  "ollama": {
+    "real_provider": true,
+    "tools": 5,
+    "empty_data_checked": true,
+    "facts_are_test_fixtures": true
+  },
+  "gigachat": {
+    "real_successful_call": false,
+    "reason": "No API key provided",
+    "missing_key_returns_unavailable": true,
+    "oauth_errors_timeouts_tested_with_local_server_and_mocks": true
+  },
+  "camera": {
+    "diagnostic_page": "http://127.0.0.1:8001",
+    "physical_video_and_recognition_confirmed": false,
+    "reason": "Waiting for browser camera permission and user captures",
+    "microphone_requested": false,
+    "database_in_diagnostic": false,
+    "production_database_integration": "Existing POST /people stores embedding; verified in source, not on a live stand"
+  },
+  "liveness": {
+    "screen_and_paper_tested": false,
+    "saved_package_photos_classified_live": 52,
+    "spoof_resistance_confirmed": false
+  },
+  "migration": "Recalculate all reference embeddings using the new /embed pipeline before deploying",
+  "docker_build_and_full_stand_tested": false
+}

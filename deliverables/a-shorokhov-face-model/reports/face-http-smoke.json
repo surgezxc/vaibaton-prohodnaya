@@ -9,15 +9,17 @@
   "embedding_size": 512,
   "own": {
     "face_count": 1,
-    "score": 0.8575954437255859,
+    "score": 0.8770982027053833,
     "match": true,
     "live": true
   },
   "wrong": {
     "face_count": 1,
-    "score": 0.017243318259716034,
+    "score": 0.03453666344285011,
     "match": false,
     "live": true
   },
-  "elapsed_seconds": 1.59
+  "invalid_inputs_refused": 3,
+  "embedding_pipeline": "buffalo_l_flip_clahe_v1",
+  "elapsed_seconds": 2.01
 }

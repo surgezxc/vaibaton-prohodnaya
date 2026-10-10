@@ -5,456 +5,411 @@
   "wrong_pairs": 468,
   "zero_count": 0,
   "double_count": 2,
-  "threshold": 0.74,
-  "min_own_score": 0.4424821436405182,
-  "max_wrong_score": 0.7303658723831177,
+  "threshold": 0.69,
+  "min_own_score": 0.4534289836883545,
+  "max_wrong_score": 0.6862683296203613,
   "suggested_threshold": null,
   "false_accepts": 0,
-  "false_rejects": 21,
+  "wrong_accepts": [],
+  "false_rejects": 11,
+  "accepted_own": 41,
+  "target_accepted": 45,
   "live_on_saved_photos": 52,
-  "elapsed_seconds": 16.77,
-  "errors": [
+  "embedding_pipeline": "buffalo_l_flip_clahe_v1",
+  "count_rejections": [
     {
       "file": "Персонал/Гаджиев Магомед Ибрагимович/Гаджиев_Магомед_Ибрагимович_проходная_1.jpg",
-      "error": "Лиц: 2"
+      "face_count": 2
     },
     {
       "file": "Персонал/Иванов Сергей Петрович/Иванов_Сергей_Петрович_проходная_4.jpg",
-      "error": "Лиц: 2"
+      "face_count": 2
     },
     {
       "file": "Персонал/Ким Андрей Сергеевич/Ким_Андрей_Сергеевич_проходная_6.jpg",
-      "error": "Лиц: 2"
+      "face_count": 2
     },
     {
       "file": "Персонал/Ким Денис Сергеевич/Ким_Денис_Сергеевич_проходная_1.jpg",
-      "error": "Лиц: 2"
+      "face_count": 2
     },
     {
       "file": "Персонал/Ким Денис Сергеевич/Ким_Денис_Сергеевич_проходная_6.jpg",
-      "error": "Лиц: 2"
+      "face_count": 2
     },
     {
       "file": "Персонал/Кузнецов Максим Олегович/Кузнецов_Максим_Олегович_проходная_5.jpg",
-      "error": "Лиц: 2"
+      "face_count": 2
     }
   ],
+  "http_verified": true,
+  "http_comparisons": 526,
+  "elapsed_seconds": 223.4,
+  "errors": [],
   "results": [
     {
       "file": "Персонал/Гаджиев Магомед Ибрагимович/Гаджиев_Магомед_Ибрагимович_проходная_3.jpg",
-      "own_score": 0.8575954437255859,
-      "max_wrong_score": 0.6245933771133423,
-      "live_status": "ok",
+      "own_score": 0.8770982027053833,
+      "max_wrong_score": 0.630661129951477,
       "live": true,
-      "live_score": 0.998685896396637
+      "accepted": true
     },
     {
       "file": "Персонал/Гаджиев Магомед Ибрагимович/Гаджиев_Магомед_Ибрагимович_проходная_4.jpg",
-      "own_score": 0.8443624377250671,
-      "max_wrong_score": 0.6246015429496765,
-      "live_status": "ok",
+      "own_score": 0.8712668418884277,
+      "max_wrong_score": 0.6415685415267944,
       "live": true,
-      "live_score": 0.9886069893836975
+      "accepted": true
     },
     {
       "file": "Персонал/Гаджиев Магомед Ибрагимович/Гаджиев_Магомед_Ибрагимович_проходная_5.jpg",
-      "own_score": 0.7268577814102173,
-      "max_wrong_score": 0.5862311124801636,
-      "live_status": "ok",
+      "own_score": 0.7500423192977905,
+      "max_wrong_score": 0.6132475137710571,
       "live": true,
-      "live_score": 0.9994978904724121
+      "accepted": true
     },
     {
       "file": "Персонал/Гаджиев Магомед Ибрагимович/Гаджиев_Магомед_Ибрагимович_проходная_6.jpg",
-      "own_score": 0.8337369561195374,
-      "max_wrong_score": 0.5902173519134521,
-      "live_status": "ok",
+      "own_score": 0.8562706112861633,
+      "max_wrong_score": 0.6009984016418457,
       "live": true,
-      "live_score": 0.9987707734107971
+      "accepted": true
     },
     {
       "file": "Персонал/Гаджиев Магомед Ибрагимович/Гаджиев_Магомед_Ибрагимович_проходная_7.jpg",
-      "own_score": 0.8439719676971436,
-      "max_wrong_score": 0.5785807371139526,
-      "live_status": "ok",
+      "own_score": 0.8496173024177551,
+      "max_wrong_score": 0.5924941301345825,
       "live": true,
-      "live_score": 0.9998617172241211
+      "accepted": true
     },
     {
       "file": "Персонал/Иванов Сергей Петрович/Иванов_Сергей_Петрович_проходная_1.png",
-      "own_score": 0.6059602499008179,
-      "max_wrong_score": 0.2550186216831207,
-      "live_status": "ok",
+      "own_score": 0.6311713457107544,
+      "max_wrong_score": 0.2770838141441345,
       "live": true,
-      "live_score": 0.9999123811721802
+      "accepted": false
     },
     {
       "file": "Персонал/Иванов Сергей Петрович/Иванов_Сергей_Петрович_проходная_2.jpg",
-      "own_score": 0.7647328972816467,
-      "max_wrong_score": 0.3623448312282562,
-      "live_status": "ok",
+      "own_score": 0.7740788459777832,
+      "max_wrong_score": 0.36107879877090454,
       "live": true,
-      "live_score": 0.9998579025268555
+      "accepted": true
     },
     {
       "file": "Персонал/Иванов Сергей Петрович/Иванов_Сергей_Петрович_проходная_5.jpg",
-      "own_score": 0.5796405076980591,
-      "max_wrong_score": 0.20440000295639038,
-      "live_status": "ok",
+      "own_score": 0.5816369652748108,
+      "max_wrong_score": 0.24506263434886932,
       "live": true,
-      "live_score": 0.9999966621398926
+      "accepted": false
     },
     {
       "file": "Персонал/Иванов Сергей Петрович/Иванов_Сергей_Петрович_проходная_6.jpg",
-      "own_score": 0.4424821436405182,
-      "max_wrong_score": 0.19742104411125183,
-      "live_status": "ok",
+      "own_score": 0.4534289836883545,
+      "max_wrong_score": 0.22474847733974457,
       "live": true,
-      "live_score": 0.9955775737762451
+      "accepted": false
     },
     {
       "file": "Персонал/Ким Андрей Сергеевич/Ким_Андрей_Сергеевич_проходная_1.jpg",
-      "own_score": 0.7586488723754883,
-      "max_wrong_score": 0.57362961769104,
-      "live_status": "ok",
+      "own_score": 0.7643865346908569,
+      "max_wrong_score": 0.5941804647445679,
       "live": true,
-      "live_score": 0.9972856044769287
+      "accepted": true
     },
     {
       "file": "Персонал/Ким Андрей Сергеевич/Ким_Андрей_Сергеевич_проходная_2.jpg",
-      "own_score": 0.7258409857749939,
-      "max_wrong_score": 0.6041502952575684,
-      "live_status": "ok",
+      "own_score": 0.7063984870910645,
+      "max_wrong_score": 0.5990180969238281,
       "live": true,
-      "live_score": 0.999419093132019
+      "accepted": true
     },
     {
       "file": "Персонал/Ким Андрей Сергеевич/Ким_Андрей_Сергеевич_проходная_3.jpg",
-      "own_score": 0.7682780027389526,
-      "max_wrong_score": 0.6261498928070068,
-      "live_status": "ok",
+      "own_score": 0.7263317108154297,
+      "max_wrong_score": 0.6253737211227417,
       "live": true,
-      "live_score": 0.9999938011169434
+      "accepted": true
     },
     {
       "file": "Персонал/Ким Андрей Сергеевич/Ким_Андрей_Сергеевич_проходная_4.jpg",
-      "own_score": 0.8357888460159302,
-      "max_wrong_score": 0.6751149296760559,
-      "live_status": "ok",
+      "own_score": 0.8350456953048706,
+      "max_wrong_score": 0.6830248832702637,
       "live": true,
-      "live_score": 0.9985517859458923
+      "accepted": true
     },
     {
       "file": "Персонал/Ким Андрей Сергеевич/Ким_Андрей_Сергеевич_проходная_7.jpg",
-      "own_score": 0.6210243701934814,
-      "max_wrong_score": 0.5056233406066895,
-      "live_status": "ok",
+      "own_score": 0.5736839771270752,
+      "max_wrong_score": 0.47176578640937805,
       "live": true,
-      "live_score": 0.9644030332565308
+      "accepted": false
     },
     {
       "file": "Персонал/Ким Денис Сергеевич/Ким_Денис_Сергеевич_проходная_2.jpg",
-      "own_score": 0.826549768447876,
-      "max_wrong_score": 0.7303658723831177,
-      "live_status": "ok",
+      "own_score": 0.8173848390579224,
+      "max_wrong_score": 0.6862683296203613,
       "live": true,
-      "live_score": 0.9992886781692505
+      "accepted": true
     },
     {
       "file": "Персонал/Ким Денис Сергеевич/Ким_Денис_Сергеевич_проходная_3.jpg",
-      "own_score": 0.7465384602546692,
-      "max_wrong_score": 0.6704365611076355,
-      "live_status": "ok",
+      "own_score": 0.7455694675445557,
+      "max_wrong_score": 0.6495074033737183,
       "live": true,
-      "live_score": 0.9876460433006287
+      "accepted": true
     },
     {
       "file": "Персонал/Ким Денис Сергеевич/Ким_Денис_Сергеевич_проходная_5.jpg",
-      "own_score": 0.7639317512512207,
-      "max_wrong_score": 0.693169116973877,
-      "live_status": "ok",
+      "own_score": 0.7675793170928955,
+      "max_wrong_score": 0.6567450165748596,
       "live": true,
-      "live_score": 0.9947579503059387
+      "accepted": true
     },
     {
       "file": "Персонал/Ким Денис Сергеевич/Ким_Денис_Сергеевич_проходная_7.jpg",
-      "own_score": 0.7232536673545837,
-      "max_wrong_score": 0.6347746849060059,
-      "live_status": "ok",
+      "own_score": 0.7072025537490845,
+      "max_wrong_score": 0.5835232138633728,
       "live": true,
-      "live_score": 0.9998067021369934
+      "accepted": true
     },
     {
       "file": "Персонал/Кузнецов Максим Олегович/Кузнецов_Максим_Олегович_проходная_1.jpg",
-      "own_score": 0.8918018341064453,
-      "max_wrong_score": 0.23918575048446655,
-      "live_status": "ok",
+      "own_score": 0.8840441703796387,
+      "max_wrong_score": 0.2620336711406708,
       "live": true,
-      "live_score": 0.9575686454772949
+      "accepted": true
     },
     {
       "file": "Персонал/Кузнецов Максим Олегович/Кузнецов_Максим_Олегович_проходная_2.jpg",
-      "own_score": 0.6754565834999084,
-      "max_wrong_score": 0.2773533761501312,
-      "live_status": "ok",
+      "own_score": 0.647699236869812,
+      "max_wrong_score": 0.27677926421165466,
       "live": true,
-      "live_score": 0.9932966828346252
+      "accepted": false
     },
     {
       "file": "Персонал/Кузнецов Максим Олегович/Кузнецов_Максим_Олегович_проходная_3.jpg",
-      "own_score": 0.6320258378982544,
-      "max_wrong_score": 0.1771390438079834,
-      "live_status": "ok",
+      "own_score": 0.6318197846412659,
+      "max_wrong_score": 0.15661396086215973,
       "live": true,
-      "live_score": 0.994709849357605
+      "accepted": false
     },
     {
       "file": "Персонал/Кузнецов Максим Олегович/Кузнецов_Максим_Олегович_проходная_7.jpg",
-      "own_score": 0.6757025122642517,
-      "max_wrong_score": 0.28522151708602905,
-      "live_status": "ok",
+      "own_score": 0.695891261100769,
+      "max_wrong_score": 0.29019612073898315,
       "live": true,
-      "live_score": 0.9998513460159302
+      "accepted": true
     },
     {
       "file": "Персонал/Кузнецов Максим Олегович/Кузнецов_Максим_Олегович_проходная_8.jpg",
-      "own_score": 0.7877989411354065,
-      "max_wrong_score": 0.26995161175727844,
-      "live_status": "ok",
+      "own_score": 0.8014594316482544,
+      "max_wrong_score": 0.2949190139770508,
       "live": true,
-      "live_score": 0.9997757077217102
+      "accepted": true
     },
     {
       "file": "Персонал/Назаров Бахтиёр Умарович/Назаров_Бахтиёр_Умарович_проходная_1.jpg",
-      "own_score": 0.8760583400726318,
-      "max_wrong_score": 0.45612823963165283,
-      "live_status": "ok",
+      "own_score": 0.8931328058242798,
+      "max_wrong_score": 0.44853532314300537,
       "live": true,
-      "live_score": 0.9955075979232788
+      "accepted": true
     },
     {
       "file": "Персонал/Назаров Бахтиёр Умарович/Назаров_Бахтиёр_Умарович_проходная_2.jpg",
-      "own_score": 0.5589672327041626,
-      "max_wrong_score": 0.29137974977493286,
-      "live_status": "ok",
+      "own_score": 0.5795297622680664,
+      "max_wrong_score": 0.3118242025375366,
       "live": true,
-      "live_score": 0.997844934463501
+      "accepted": false
     },
     {
       "file": "Персонал/Назаров Бахтиёр Умарович/Назаров_Бахтиёр_Умарович_проходная_3.jpg",
-      "own_score": 0.908737063407898,
-      "max_wrong_score": 0.45159265398979187,
-      "live_status": "ok",
+      "own_score": 0.9133294820785522,
+      "max_wrong_score": 0.45104771852493286,
       "live": true,
-      "live_score": 0.9977344274520874
+      "accepted": true
     },
     {
       "file": "Персонал/Назаров Бахтиёр Умарович/Назаров_Бахтиёр_Умарович_проходная_4.jpg",
-      "own_score": 0.5198313593864441,
-      "max_wrong_score": 0.3082905113697052,
-      "live_status": "ok",
+      "own_score": 0.5512794852256775,
+      "max_wrong_score": 0.32701992988586426,
       "live": true,
-      "live_score": 0.8146374225616455
+      "accepted": false
     },
     {
       "file": "Персонал/Назаров Бахтиёр Умарович/Назаров_Бахтиёр_Умарович_проходная_6.jpg",
-      "own_score": 0.709708571434021,
-      "max_wrong_score": 0.382653146982193,
-      "live_status": "ok",
+      "own_score": 0.7403943538665771,
+      "max_wrong_score": 0.38941526412963867,
       "live": true,
-      "live_score": 0.9958891272544861
+      "accepted": true
     },
     {
       "file": "Персонал/Петров Андрей Николаевич/Петров_Андрей_Николаевич_проходная_1.jpg",
-      "own_score": 0.7918482422828674,
-      "max_wrong_score": 0.3148348331451416,
-      "live_status": "ok",
+      "own_score": 0.8107775449752808,
+      "max_wrong_score": 0.3333098590373993,
       "live": true,
-      "live_score": 0.9998831748962402
+      "accepted": true
     },
     {
       "file": "Персонал/Петров Андрей Николаевич/Петров_Андрей_Николаевич_проходная_2.jpg",
-      "own_score": 0.6842448711395264,
-      "max_wrong_score": 0.309531569480896,
-      "live_status": "ok",
+      "own_score": 0.6678871512413025,
+      "max_wrong_score": 0.28150036931037903,
       "live": true,
-      "live_score": 0.9814358353614807
+      "accepted": false
     },
     {
       "file": "Персонал/Петров Андрей Николаевич/Петров_Андрей_Николаевич_проходная_3.jpg",
-      "own_score": 0.8094646334648132,
-      "max_wrong_score": 0.3177890181541443,
-      "live_status": "ok",
+      "own_score": 0.8265718817710876,
+      "max_wrong_score": 0.3256038725376129,
       "live": true,
-      "live_score": 0.9989132881164551
+      "accepted": true
     },
     {
       "file": "Персонал/Петров Андрей Николаевич/Петров_Андрей_Николаевич_проходная_4.jpg",
-      "own_score": 0.8321431279182434,
-      "max_wrong_score": 0.31908750534057617,
-      "live_status": "ok",
+      "own_score": 0.8441343307495117,
+      "max_wrong_score": 0.3403608798980713,
       "live": true,
-      "live_score": 0.999970555305481
+      "accepted": true
     },
     {
       "file": "Персонал/Петров Андрей Николаевич/Петров_Андрей_Николаевич_проходная_5.jpg",
-      "own_score": 0.7642796635627747,
-      "max_wrong_score": 0.306698739528656,
-      "live_status": "ok",
+      "own_score": 0.7875934839248657,
+      "max_wrong_score": 0.30659857392311096,
       "live": true,
-      "live_score": 0.9997240900993347
+      "accepted": true
     },
     {
       "file": "Персонал/Петров Андрей Николаевич/Петров_Андрей_Николаевич_проходная_6.jpg",
-      "own_score": 0.777906596660614,
-      "max_wrong_score": 0.31075936555862427,
-      "live_status": "ok",
+      "own_score": 0.7980186939239502,
+      "max_wrong_score": 0.31831997632980347,
       "live": true,
-      "live_score": 0.9984639883041382
+      "accepted": true
     },
     {
       "file": "Персонал/Смирнова Ольга Викторовна/Смирнова_Ольга_Викторовна_проходная_1.jpg",
-      "own_score": 0.7695907354354858,
-      "max_wrong_score": 0.19937169551849365,
-      "live_status": "ok",
+      "own_score": 0.7768046855926514,
+      "max_wrong_score": 0.24568107724189758,
       "live": true,
-      "live_score": 0.987386167049408
+      "accepted": true
     },
     {
       "file": "Персонал/Смирнова Ольга Викторовна/Смирнова_Ольга_Викторовна_проходная_2.jpg",
-      "own_score": 0.7156994342803955,
-      "max_wrong_score": 0.2068280726671219,
-      "live_status": "ok",
+      "own_score": 0.7227742075920105,
+      "max_wrong_score": 0.2351391613483429,
       "live": true,
-      "live_score": 0.9798094034194946
+      "accepted": true
     },
     {
       "file": "Персонал/Смирнова Ольга Викторовна/Смирнова_Ольга_Викторовна_проходная_3.jpg",
-      "own_score": 0.7181631326675415,
-      "max_wrong_score": 0.18394489586353302,
-      "live_status": "ok",
+      "own_score": 0.7044753432273865,
+      "max_wrong_score": 0.2402402013540268,
       "live": true,
-      "live_score": 0.9996494054794312
+      "accepted": true
     },
     {
       "file": "Персонал/Смирнова Ольга Викторовна/Смирнова_Ольга_Викторовна_проходная_4.jpg",
-      "own_score": 0.6785131692886353,
-      "max_wrong_score": 0.24891912937164307,
-      "live_status": "ok",
+      "own_score": 0.6750679016113281,
+      "max_wrong_score": 0.27280086278915405,
       "live": true,
-      "live_score": 0.9932544827461243
+      "accepted": false
     },
     {
       "file": "Персонал/Смирнова Ольга Викторовна/Смирнова_Ольга_Викторовна_проходная_5.jpg",
-      "own_score": 0.7764694690704346,
-      "max_wrong_score": 0.19459939002990723,
-      "live_status": "ok",
+      "own_score": 0.7858556509017944,
+      "max_wrong_score": 0.2051144242286682,
       "live": true,
-      "live_score": 0.9998181462287903
+      "accepted": true
     },
     {
       "file": "Персонал/Смирнова Ольга Викторовна/Смирнова_Ольга_Викторовна_проходная_6.jpg",
-      "own_score": 0.7284520864486694,
-      "max_wrong_score": 0.22973990440368652,
-      "live_status": "ok",
+      "own_score": 0.7126603126525879,
+      "max_wrong_score": 0.2768963873386383,
       "live": true,
-      "live_score": 0.992021381855011
+      "accepted": true
     },
     {
       "file": "Персонал/Эргашев Дилшод Каримович/Эргашев_Дилшод_Каримович_проходная_1.jpg",
-      "own_score": 0.8004575967788696,
-      "max_wrong_score": 0.42403197288513184,
-      "live_status": "ok",
+      "own_score": 0.785466730594635,
+      "max_wrong_score": 0.42462217807769775,
       "live": true,
-      "live_score": 0.9952691197395325
+      "accepted": true
     },
     {
       "file": "Персонал/Эргашев Дилшод Каримович/Эргашев_Дилшод_Каримович_проходная_2.jpg",
-      "own_score": 0.9160951375961304,
-      "max_wrong_score": 0.575977087020874,
-      "live_status": "ok",
+      "own_score": 0.9148297309875488,
+      "max_wrong_score": 0.584620475769043,
       "live": true,
-      "live_score": 0.995895266532898
+      "accepted": true
     },
     {
       "file": "Персонал/Эргашев Дилшод Каримович/Эргашев_Дилшод_Каримович_проходная_3.jpg",
-      "own_score": 0.785053014755249,
-      "max_wrong_score": 0.36174362897872925,
-      "live_status": "ok",
+      "own_score": 0.7778940200805664,
+      "max_wrong_score": 0.3626590073108673,
       "live": true,
-      "live_score": 0.9999420642852783
+      "accepted": true
     },
     {
       "file": "Персонал/Эргашев Дилшод Каримович/Эргашев_Дилшод_Каримович_проходная_4.jpg",
-      "own_score": 0.9060015082359314,
-      "max_wrong_score": 0.5679336786270142,
-      "live_status": "ok",
+      "own_score": 0.9141327142715454,
+      "max_wrong_score": 0.5770273208618164,
       "live": true,
-      "live_score": 0.9963488578796387
+      "accepted": true
     },
     {
       "file": "Персонал/Эргашев Дилшод Каримович/Эргашев_Дилшод_Каримович_проходная_5.jpg",
-      "own_score": 0.8488146066665649,
-      "max_wrong_score": 0.5424923896789551,
-      "live_status": "ok",
+      "own_score": 0.8473069667816162,
+      "max_wrong_score": 0.5346349477767944,
       "live": true,
-      "live_score": 0.9924335479736328
+      "accepted": true
     },
     {
       "file": "Персонал/Эргашев Дилшод Каримович/Эргашев_Дилшод_Каримович_проходная_6.jpg",
-      "own_score": 0.8933908343315125,
-      "max_wrong_score": 0.5113865733146667,
-      "live_status": "ok",
+      "own_score": 0.9025709629058838,
+      "max_wrong_score": 0.5230283737182617,
       "live": true,
-      "live_score": 0.9282851219177246
+      "accepted": true
     },
     {
       "file": "Персонал/Юсупов Тимур Рашидович/Юсупов_Тимур_Рашидович_проходная_1.jpg",
-      "own_score": 0.7562481164932251,
-      "max_wrong_score": 0.36743849515914917,
-      "live_status": "ok",
+      "own_score": 0.7705246210098267,
+      "max_wrong_score": 0.4012886881828308,
       "live": true,
-      "live_score": 0.999849796295166
+      "accepted": true
     },
     {
       "file": "Персонал/Юсупов Тимур Рашидович/Юсупов_Тимур_Рашидович_проходная_2.jpg",
-      "own_score": 0.7074493765830994,
-      "max_wrong_score": 0.37730658054351807,
-      "live_status": "ok",
+      "own_score": 0.6942894458770752,
+      "max_wrong_score": 0.4083167016506195,
       "live": true,
-      "live_score": 0.9999033212661743
+      "accepted": true
     },
     {
       "file": "Персонал/Юсупов Тимур Рашидович/Юсупов_Тимур_Рашидович_проходная_3.jpg",
-      "own_score": 0.7851673364639282,
-      "max_wrong_score": 0.3679066598415375,
-      "live_status": "ok",
+      "own_score": 0.7664121389389038,
+      "max_wrong_score": 0.3824194371700287,
       "live": true,
-      "live_score": 0.9999926090240479
+      "accepted": true
     },
     {
       "file": "Персонал/Юсупов Тимур Рашидович/Юсупов_Тимур_Рашидович_проходная_4.jpg",
-      "own_score": 0.6783808469772339,
-      "max_wrong_score": 0.2567492723464966,
-      "live_status": "ok",
+      "own_score": 0.6720708608627319,
+      "max_wrong_score": 0.2703494429588318,
       "live": true,
-      "live_score": 0.9999593496322632
+      "accepted": false
     },
     {
       "file": "Персонал/Юсупов Тимур Рашидович/Юсупов_Тимур_Рашидович_проходная_5.jpg",
-      "own_score": 0.719933271408081,
-      "max_wrong_score": 0.3446837067604065,
-      "live_status": "ok",
+      "own_score": 0.7318527698516846,
+      "max_wrong_score": 0.3583372235298157,
       "live": true,
-      "live_score": 0.9999887943267822
+      "accepted": true
     },
     {
       "file": "Персонал/Юсупов Тимур Рашидович/Юсупов_Тимур_Рашидович_проходная_6.jpg",
-      "own_score": 0.781819224357605,
-      "max_wrong_score": 0.30386072397232056,
-      "live_status": "ok",
+      "own_score": 0.752862811088562,
+      "max_wrong_score": 0.32598912715911865,
       "live": true,
-      "live_score": 0.9999936819076538
+      "accepted": true
     }
   ]
 }

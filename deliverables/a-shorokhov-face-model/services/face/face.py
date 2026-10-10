@@ -59,8 +59,8 @@ class FaceService:
         from insightface.app import FaceAnalysis
         from ultralytics import YOLO
 
-        # shortcut: package scores overlap and 0.74 rejects some genuine faces; recalibrate with clearer references and real camera frames.
-        self.threshold = float(os.environ.get("FACE_MATCH_THRESHOLD", "0.74"))
+        # shortcut: 0.69 separates tested foreign pairs, but some genuine frames fail; recalibrate on independent live captures.
+        self.threshold = float(os.environ.get("FACE_MATCH_THRESHOLD", "0.69"))
         self.confidence = float(os.environ.get("FACE_DETECT_CONFIDENCE", "0.25"))
         live_threshold = float(os.environ.get("FACE_LIVENESS_THRESHOLD", "0.8"))
         if not 0 < self.threshold <= 1 or not 0 < self.confidence <= 1 or not 0 < live_threshold <= 1:
@@ -93,9 +93,21 @@ class FaceService:
             raise ValueError("Не удалось однозначно выделить лицо для сравнения.")
         index = candidates[0]
         face = Face(bbox=boxes[index, :4], kps=landmarks[index], det_score=boxes[index, 4])
-        self.analysis.models["recognition"].get(image, face)
-        normalized_embedding(face.embedding)
+        face.embedding = self.recognition_embedding(image, face.kps)
         return face
+
+    def recognition_embedding(self, image, landmarks):
+        from insightface.utils import face_align
+
+        model = self.analysis.models["recognition"]
+        crop = face_align.norm_crop(image, landmark=landmarks, image_size=model.input_size[0])
+        lab = cv2.cvtColor(crop, cv2.COLOR_BGR2LAB)
+        lab[:, :, 0] = cv2.createCLAHE(clipLimit=2, tileGridSize=(8, 8)).apply(lab[:, :, 0])
+        equalized = cv2.cvtColor(lab, cv2.COLOR_LAB2BGR)
+        features = model.get_feat([crop, cv2.flip(crop, 1), equalized, cv2.flip(equalized, 1)])
+        if np.asarray(features).shape != (4, 512) or not np.all(np.isfinite(features)):
+            raise ValueError("Некорректные векторы распознавания лица.")
+        return normalized_embedding(np.sum(features, axis=0))
 
     def embed(self, image) -> list[float]:
         boxes = self.boxes(image)
