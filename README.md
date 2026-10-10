@@ -37,3 +37,8 @@ AGENTS.md
 ```
 
 Старый кит документов (`applicant-docs-ru`, `/pipeline`, …) не использовать.
+
+## Документы сдачи
+
+- [Схема решения](docs/architecture.md)
+- [Журнал решений](docs/decisions.md)
