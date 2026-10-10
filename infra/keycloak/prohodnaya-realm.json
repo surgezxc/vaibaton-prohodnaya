@@ -66,6 +66,7 @@
   "users": [
     {
       "username": "worker",
+      "email": "worker@localhost",
       "enabled": true,
       "emailVerified": true,
       "firstName": "Магомед",
@@ -75,6 +76,7 @@
     },
     {
       "username": "worker2",
+      "email": "worker2@localhost",
       "enabled": true,
       "emailVerified": true,
       "firstName": "Сергей",
@@ -84,6 +86,7 @@
     },
     {
       "username": "gate",
+      "email": "gate@localhost",
       "enabled": true,
       "emailVerified": true,
       "firstName": "Контролёр",
@@ -93,6 +96,7 @@
     },
     {
       "username": "admin",
+      "email": "admin@localhost",
       "enabled": true,
       "emailVerified": true,
       "firstName": "Кадры",
@@ -102,6 +106,7 @@
     },
     {
       "username": "manager",
+      "email": "manager@localhost",
       "enabled": true,
       "emailVerified": true,
       "firstName": "Руководитель",
