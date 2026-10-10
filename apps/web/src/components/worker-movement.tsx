@@ -19,7 +19,7 @@ export function WorkerMovement({ revision }: { revision: string | null }) {
   const [mode, setMode] = useState<"gps" | "button" | "off">("gps");
   const [retry, setRetry] = useState(0);
   const [sending, setSending] = useState(false);
-  const [last, setLast] = useState<{ time: string; accuracy: number } | null>(null);
+  const [last, setLast] = useState<{ time: string; accuracy?: number; source: "gps" | "button"; lat?: number; lng?: number; zone?: string } | null>(null);
   const version = useRef(0);
   const zoneLock = useRef(false);
   const lastGps = useRef(0);
@@ -60,7 +60,7 @@ export function WorkerMovement({ revision }: { revision: string | null }) {
         const saved = await apiRequest<LocationResult>("/locations", accessToken, { source: "gps", shift_id: shiftId, lat: position.coords.latitude, lng: position.coords.longitude });
         if (!valid()) return;
         if (!saved.location_id || saved.shift_id !== shiftId) throw new Error("Сервер не подтвердил запись координат.");
-        setLast({ time: saved.recorded_at, accuracy: position.coords.accuracy }); setMessage("Координаты записаны сервером.");
+        setLast({ time: saved.recorded_at, accuracy: position.coords.accuracy, source: "gps", lat: position.coords.latitude, lng: position.coords.longitude }); setMessage("Координаты записаны сервером.");
       } catch (cause) {
         if (!valid()) return;
         if (typeof cause === "object" && cause !== null && "code" in cause) {
@@ -97,6 +97,7 @@ export function WorkerMovement({ revision }: { revision: string | null }) {
       const saved = await apiRequest<LocationResult>("/locations", accessToken, { source: "button", shift_id: shiftId, zone_name: name });
       if (generation !== version.current || document.hidden) return;
       if (!saved.location_id || saved.shift_id !== shiftId) throw new Error("Сервер не подтвердил запись зоны.");
+      setLast({ time: saved.recorded_at, source: "button", zone: name });
       setMessage(`Симуляция: ${name}. ${saved.reason_human}`); setError(null);
     } catch (cause) { if (generation === version.current) { setError(errorMessage(cause)); setMe(null); currentShift.current = null; setRetry((v) => v + 1); } }
     finally { zoneLock.current = false; setSending(false); }
@@ -112,7 +113,12 @@ export function WorkerMovement({ revision }: { revision: string | null }) {
       <div className="section-heading"><h2>Местоположение</h2><span className="badge">{mode === "gps" ? "Раз в 60 секунд" : "GPS выключен"}</span></div>
       <p className="muted">GPS работает только при открытой смене и видимой странице. В фоне и при блокировке телефона отправка прекращается. Используется экономный режим, без постоянного наблюдения за датчиком.</p>
       <div className="button-row"><button className="button button-secondary" disabled={mode === "gps" || sending} onClick={() => setMode("gps")}>Включить GPS</button><button className="button button-secondary" disabled={mode === "off" || sending} onClick={() => setMode("off")}>Остановить</button></div>
-      {last && <p className="hint">Последняя запись: {new Date(last.time).toLocaleTimeString("ru-RU")}. Точность датчика: ±{Math.round(last.accuracy)} м.</p>}
+      <div className="hint" role="status">
+        <strong>{last ? "Сервер принял местоположение" : "В этой смене ещё нет подтверждённой отправки с этой страницы"}</strong>
+        {last && <p>Источник: {last.source === "gps" ? "GPS" : `Симуляция — ${last.zone}`}. Время: {new Date(last.time).toLocaleTimeString("ru-RU")}.
+          {last.source === "gps" && <> Координаты: {last.lat?.toFixed(6)}, {last.lng?.toFixed(6)}. Точность: ±{Math.round(last.accuracy ?? 0)} м.</>}</p>}
+        <p>Руководитель видит отметки в разделе «Местоположение рабочих» на странице <a href="/manager">«Руководитель»</a>. После отправки обновите данные там или дождитесь автоматического обновления.</p>
+      </div>
       {error && <p className="inline-error" role="alert">{error}</p>}
       {message && <p className="hint" role="status">{message}</p>}
     </section>

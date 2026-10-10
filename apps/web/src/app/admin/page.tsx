@@ -57,6 +57,7 @@ export default function AdminPage() {
       <p className="mt-2 mb-5 max-w-2xl text-stone-600">
         Заведите человека для телефона worker: подставьте его учётку, приложите фото и сохраните. Сервер сам снимет эталон лица. Без фото карточка не создаётся.
       </p>
+      <Link href="/manager" className="mb-5 inline-block rounded-xl bg-emerald-100 px-4 py-3 font-semibold text-emerald-950">Местоположение рабочих, GPS и демо зон →</Link>
       {session ? (
         <>
           <div className="mb-4">

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { LocationMonitor } from "@/components/location-monitor";
 import { LoginCard } from "@/components/login-card";
 import { ManagerAnalytics, moscowToday, type Period } from "@/components/manager-analytics";
 import { ManagerAssistant } from "@/components/manager-assistant";
@@ -38,7 +39,8 @@ function ManagerDesk({ token, session }: { token: string; session: Session }) {
   const [period, setPeriod] = useState<Period>({ from: today, to: today });
   return (
     <div className="grid gap-4">
-      <RoleWarning session={session} role="manager" label="руководитель" />
+      {!session.roles.includes("admin") && <RoleWarning session={session} role="manager" label="руководитель" />}
+      <LocationMonitor key={session.sub} token={token} />
       <div className="grid gap-4 lg:grid-cols-2">
         <NowBoard token={token} />
         <ManagerAssistant token={token} period={period} />
