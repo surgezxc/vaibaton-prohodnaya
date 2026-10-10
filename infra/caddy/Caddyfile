@@ -1,5 +1,7 @@
-# Один HTTPS-origin для ноутбука и телефона: https://{$LAN_IP}:8443
-# Корень ЦС отдаётся по HTTP, пока телефон ещё не доверяет сертификату.
+# Два входа одной страницы.
+# Телефон: http://{$LAN_IP}:8080 без сертификата.
+# Ноутбук и телефон с установленным ЦС: https://{$LAN_IP}:8443.
+# Корень ЦС по-прежнему на HTTP :8088.
 {
 	admin off
 	auto_https disable_redirects
@@ -16,7 +18,26 @@
 	}
 	handle {
 		header Content-Type "text/plain; charset=utf-8"
-		respond "Сертификат для Android: http://{$LAN_IP}:8088/ca.crt . Затем откройте https://{$LAN_IP}:8443" 200
+		respond "Телефон без сертификата: http://{$LAN_IP}:8080/phone . ЦС для HTTPS: http://{$LAN_IP}:8088/ca.crt , затем https://{$LAN_IP}:8443" 200
+	}
+}
+
+:8080 {
+	@keycloak path_regexp ^/(realms|resources)(/.*)?$
+	handle @keycloak {
+		reverse_proxy keycloak:8080 {
+			header_up Host {http.request.host}
+			header_up X-Forwarded-Host {http.request.host}
+			header_up X-Forwarded-Proto http
+			header_up X-Forwarded-Port 8080
+		}
+	}
+	@api path_regexp ^/(attempts|devices|people|zones|site|analytics|plans|locations|me|assistant|journal|directory)(/.*)?$
+	handle @api {
+		reverse_proxy api:3001
+	}
+	handle {
+		reverse_proxy web:43123
 	}
 }
 

@@ -1,5 +1,6 @@
-# Стенд: postgres, keycloak, api, face, web, https.
-# Телефон и ноутбук открывают один адрес https://$LAN_IP:8443. Туннель не нужен.
+# Стенд: postgres, keycloak, api, face, web, http и https.
+# Телефон без сертификата: http://$LAN_IP:8080/phone . VPN выключен.
+# https://$LAN_IP:8443 остаётся. Туннель не нужен.
 # face — сборка Саши, порог 0.69, каталог не переносить.
 
 services:
@@ -31,7 +32,9 @@ services:
       KC_DB_USERNAME: prohodnaya
       KC_DB_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
       KC_HTTP_ENABLED: "true"
-      KC_HOSTNAME: https://${LAN_IP:?Задайте LAN_IP в .env — адрес ноутбука в Wi-Fi}:8443
+      # start-dev сам ставит hostname-strict=false. Полный KC_HOSTNAME не задаём:
+      # схема и порт берутся из запроса, поэтому http://LAN:8080 и https://LAN:8443
+      # оба остаются фронтом Keycloak. Прямой localhost:8081 для ноутбука тоже жив.
       KC_HOSTNAME_STRICT: "false"
       KC_PROXY_HEADERS: xforwarded
       KC_HEALTH_ENABLED: "true"
@@ -48,7 +51,7 @@ services:
     environment:
       PORT: 3001
       DATABASE_URL: postgres://prohodnaya:${POSTGRES_PASSWORD:-change-me}@postgres:5432/prohodnaya
-      KEYCLOAK_ISSUER: https://${LAN_IP:?Задайте LAN_IP в .env — адрес ноутбука в Wi-Fi}:8443/realms/prohodnaya
+      KEYCLOAK_ISSUER: "https://${LAN_IP:?Задайте LAN_IP в .env — адрес ноутбука в Wi-Fi}:8443/realms/prohodnaya,http://${LAN_IP}:8080/realms/prohodnaya,http://localhost:8081/realms/prohodnaya,http://127.0.0.1:8081/realms/prohodnaya"
       KEYCLOAK_JWKS_URL: http://keycloak:8080/realms/prohodnaya/protocol/openid-connect/certs
       KEYCLOAK_ADMIN_URL: http://keycloak:8080
       KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
@@ -60,7 +63,7 @@ services:
       GIGACHAT_API_KEY: ${GIGACHAT_API_KEY:-}
       GIGACHAT_MODEL: ${GIGACHAT_MODEL:-GigaChat}
       ATTEMPT_TTL_SECONDS: 25
-      WEB_ORIGIN: https://${LAN_IP:?Задайте LAN_IP в .env — адрес ноутбука в Wi-Fi}:8443
+      WEB_ORIGIN: "https://${LAN_IP:?Задайте LAN_IP в .env — адрес ноутбука в Wi-Fi}:8443,http://${LAN_IP}:8080,http://localhost:43123,http://127.0.0.1:43123"
     ports:
       - "3001:3001"
     depends_on:
@@ -95,6 +98,7 @@ services:
     entrypoint: ["/bin/bash", "/tune-redirects.sh"]
     environment:
       LAN_IP: ${LAN_IP:?Задайте LAN_IP в .env — адрес ноутбука в Wi-Fi}
+      PHONE_HTTP_ORIGIN: http://${LAN_IP}:8080
       KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN:-admin}
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-change-me}
     volumes:
@@ -108,6 +112,7 @@ services:
     environment:
       LAN_IP: ${LAN_IP:?Задайте LAN_IP в .env — адрес ноутбука в Wi-Fi}
     ports:
+      - "0.0.0.0:8080:8080"
       - "8443:8443"
       - "8088:8088"
     volumes:

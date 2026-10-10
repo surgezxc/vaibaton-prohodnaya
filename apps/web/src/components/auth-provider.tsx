@@ -3,6 +3,7 @@
 import Keycloak from "keycloak-js";
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { keycloakBase } from "@/lib/config";
+import { ensurePkceDigest } from "@/lib/sha256-subtle.mjs";
 
 let initialization: Promise<Keycloak> | undefined;
 function initialize() {
@@ -10,7 +11,8 @@ function initialize() {
     const url = keycloakBase();
     if (!url) throw new Error("Вход не настроен. Укажите адрес Keycloak в конфигурации приложения.");
     const client = new Keycloak({ url, realm: process.env.NEXT_PUBLIC_KEYCLOAK_REALM || "prohodnaya", clientId: process.env.NEXT_PUBLIC_KEYCLOAK_CLIENT_ID || "web" });
-    await client.init({ pkceMethod: "S256", checkLoginIframe: false, responseMode: "query" });
+    const pkce = ensurePkceDigest();
+    await client.init({ pkceMethod: pkce ? "S256" : false, checkLoginIframe: false, responseMode: "query" });
     return client;
   })();
   return initialization;

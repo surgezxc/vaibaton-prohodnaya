@@ -22,6 +22,7 @@ export default function PhonePage() {
   const [tracked, setTracked] = useState<string | null>(null);
   const [confirmed, setConfirmed] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [insecureHttp, setInsecureHttp] = useState(false);
   const lock = useRef(false);
   const allowed = auth.authenticated && auth.roles.includes("worker");
   const result = useAttemptStatus(allowed ? tracked : null, auth.subject, auth.token);
@@ -39,6 +40,8 @@ export default function PhonePage() {
     confirmationPanel.current?.focus({ preventScroll: true });
     confirmationPanel.current?.scrollIntoView({ block: "start", behavior: "auto" });
   }, [attempt]);
+
+  useEffect(() => { setInsecureHttp(window.isSecureContext === false); }, []);
 
   useEffect(() => {
     try {
@@ -66,7 +69,7 @@ export default function PhonePage() {
     if (!allowed || !owner || lock.current) return;
     lock.current = true; setBusy(true); setMessage(null); setRegistrationMessage(null);
     try {
-      if (!crypto.subtle) throw new Error("Защищённый ключ недоступен. Откройте страницу по HTTPS.");
+      if (!crypto.subtle?.generateKey) throw new Error("Ключ телефона на обычном HTTP недоступен. Для привязки откройте страницу по HTTPS.");
       const key = (await storedProof(owner)) || await generateProof();
       // Сохраняем до API: потеря ответа не должна потерять соответствующий приватный ключ.
       await storedProof(owner, key);
@@ -119,6 +122,7 @@ export default function PhonePage() {
   }
 
   return <ScreenShell role="phone" title="Мой проход" description="Сканируйте QR контролёра внутри страницы, затем подтвердите попытку.">
+    {insecureHttp && <p className="hint">Страница открыта по HTTP. Вход и экран сканера здесь есть. Камера, GPS и ключ телефона на этом адресе не работают: браузер даёт их только по HTTPS.</p>}
     <section className="panel">
       <div className="section-heading"><h2>Ключ телефона</h2><span className="badge">{proof?.registered ? "Сохранён в браузере" : "Не привязан"}</span></div>
       <p className="muted">Привяжите этот браузер к своей учётной записи один раз. Повторная привязка отключит прежний ключ на сервере.</p>

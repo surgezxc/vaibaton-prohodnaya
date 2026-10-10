@@ -17,7 +17,7 @@ npm ci
 npm run dev
 ```
 
-Локальный `npm run dev` открывается на `http://localhost:43123`. Телефон и ноутбук на стенде открывают один адрес `https://<LAN_IP>:8443`. Как поставить сертификат на Android — в [docs/run.md](../../docs/run.md). Публичный туннель для этого не нужен.
+Локальный `npm run dev` открывается на `http://localhost:43123`. Телефон на стенде открывает `http://<LAN_IP>:8080/phone` без сертификата. `https://<LAN_IP>:8443` остаётся. Подробности — в [docs/run.md](../../docs/run.md). Публичный туннель для этого не нужен.
 
 ## Проходная и телефон Дениса
 
@@ -36,9 +36,9 @@ cp -n .env.example .env.local
 npm run dev -- --port 3002
 ```
 
-Для отдельной проверки PKCE открыть `http://localhost:3002/gate` или `/phone`: этот порт разрешён в realm из репозитория. Общий стенд для телефона — `https://<LAN_IP>:8443`, один origin на ноутбуке и телефоне. Настройка — в [docs/run.md](../../docs/run.md). Cloudflare и localhost.run не нужны.
+Для отдельной проверки PKCE открыть `http://localhost:3002/gate` или `/phone`: этот порт разрешён в realm из репозитория. Телефон на стенде — `http://<LAN_IP>:8080`, один origin со страницей, API и Keycloak. Настройка — в [docs/run.md](../../docs/run.md). Cloudflare и localhost.run не нужны.
 
-В `.env.local` задать публичные адреса API и Keycloak из `.env.example`; секретов и client secret у браузерного клиента нет. После изменения NEXT_PUBLIC-переменных перезапустить dev или пересобрать production. На телефоне `localhost` обозначает сам телефон. Камере, WebCrypto и PKCE нужен безопасный контекст: на стенде это `https://<LAN_IP>:8443`.
+В `.env.local` задать публичные адреса API и Keycloak из `.env.example`; секретов и client secret у браузерного клиента нет. После изменения NEXT_PUBLIC-переменных перезапустить dev или пересобрать production. На телефоне `localhost` обозначает сам телефон. Вход на `http://<LAN_IP>:8080` работает. Камера, GPS и ключ телефона на этом HTTP не работают: им нужен `https://<LAN_IP>:8443`.
 
 ## Реализовано
 

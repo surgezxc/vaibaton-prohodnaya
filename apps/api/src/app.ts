@@ -14,12 +14,20 @@ import { registerPlans } from "./modules/plans.js";
 import { registerZones } from "./modules/zones.js";
 import type { ApiApp } from "./types.js";
 
+function corsOrigin(): string | string[] {
+  const raw = (process.env.WEB_ORIGIN ?? "*").trim();
+  if (raw === "" || raw === "*") return "*";
+  const list = raw.split(",").map((item) => item.trim()).filter(Boolean);
+  if (list.length === 0) return "*";
+  return list.length === 1 ? list[0] : list;
+}
+
 export function createApp(pool: pg.Pool): ApiApp {
   const app: ApiApp = new Hono();
   app.use(
     "*",
     cors({
-      origin: process.env.WEB_ORIGIN ?? "*",
+      origin: corsOrigin(),
       allowHeaders: ["Authorization", "Content-Type"],
       allowMethods: ["GET", "POST", "PATCH", "PUT", "OPTIONS"],
     }),

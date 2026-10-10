@@ -57,8 +57,8 @@ export function CameraPreview({ title, description, onCapture, onQr, enabled = t
 
   async function start() {
     if (!enabled) return;
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setError("Камера недоступна. Откройте страницу по HTTPS или на localhost в поддерживаемом браузере.");
+    if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
+      setError("Камера на обычном HTTP не включается. Страница при этом открыта. Для камеры нужен HTTPS или localhost.");
       return;
     }
     const current = ++request.current;

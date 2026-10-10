@@ -2,11 +2,15 @@
 # Добавляет HTTPS-origin Wi-Fi в клиент web. Импорт realm не повторяется на заполненном томе.
 set -u
 LAN_IP="${LAN_IP:-}"
+PHONE_HTTP_ORIGIN="${PHONE_HTTP_ORIGIN:-}"
+if [ -z "$PHONE_HTTP_ORIGIN" ] && [ -n "$LAN_IP" ]; then
+  PHONE_HTTP_ORIGIN="http://${LAN_IP}:8080"
+fi
 ADMIN_USER="${KC_BOOTSTRAP_ADMIN_USERNAME:-admin}"
 ADMIN_PASSWORD="${KC_BOOTSTRAP_ADMIN_PASSWORD:-change-me}"
 KCADM=/opt/keycloak/bin/kcadm.sh
 
-echo "Ждём Keycloak, чтобы разрешить возврат на https://${LAN_IP:-<LAN_IP>}:8443"
+echo "Ждём Keycloak, чтобы разрешить возврат на http://${LAN_IP:-<LAN_IP>}:8080 и https://${LAN_IP:-<LAN_IP>}:8443"
 ok=0
 for _ in $(seq 1 90); do
   if "$KCADM" config credentials \
@@ -40,21 +44,27 @@ fi
 
 EXACT=""
 LOGOUT_EXACT=""
+if [ -n "$PHONE_HTTP_ORIGIN" ]; then
+  EXACT="\"${PHONE_HTTP_ORIGIN}/*\",\"${PHONE_HTTP_ORIGIN}\","
+  LOGOUT_EXACT="${PHONE_HTTP_ORIGIN}##"
+fi
 if [ -n "$LAN_IP" ]; then
-  EXACT="\"https://${LAN_IP}:8443/*\",\"https://${LAN_IP}:8443\","
-  LOGOUT_EXACT="https://${LAN_IP}:8443##"
+  EXACT="${EXACT}\"https://${LAN_IP}:8443/*\",\"https://${LAN_IP}:8443\","
+  LOGOUT_EXACT="${LOGOUT_EXACT}https://${LAN_IP}:8443##"
 fi
 
+# Пустой pkce.code.challenge.method снимает обязательность S256.
+# Браузер с WebCrypto всё равно шлёт S256. На http://LAN:8080 вход возможен и без него.
 cat > /tmp/web-redirects.json <<EOF
 {
   "redirectUris": [${EXACT}"https://*","http://localhost:43123/*","http://127.0.0.1:43123/*","http://localhost:43123","http://127.0.0.1:43123","http://localhost:3002/*","http://127.0.0.1:3002/*","http://localhost:3000/*","http://127.0.0.1:3000/*","http://localhost:4173/*"],
   "webOrigins": ["+"],
   "attributes": {
-    "pkce.code.challenge.method": "S256",
+    "pkce.code.challenge.method": "",
     "post.logout.redirect.uris": "${LOGOUT_EXACT}https://*##http://localhost:43123##http://127.0.0.1:43123##http://localhost:3002##http://127.0.0.1:3002##http://localhost:3000##http://127.0.0.1:3000##http://localhost:4173"
   }
 }
 EOF
 
 "$KCADM" update "clients/${CID}" -r prohodnaya -f /tmp/web-redirects.json
-echo "Клиент web принимает https://${LAN_IP:-<любой хост>}:8443"
+echo "Клиент web принимает http://${LAN_IP:-<LAN_IP>}:8080 и https://${LAN_IP:-<любой хост>}:8443"

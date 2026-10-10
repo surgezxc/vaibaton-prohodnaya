@@ -36,16 +36,21 @@ export async function authenticate(header: string | undefined): Promise<AuthUser
   const token = header.slice(7).trim();
   if (!token) return null;
 
-  const issuer = process.env.KEYCLOAK_ISSUER?.trim();
+  const issuers = (process.env.KEYCLOAK_ISSUER ?? "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
   const hmac = process.env.JWT_HMAC_SECRET?.trim();
 
   try {
     let payload: JWTPayload;
-    if (issuer) {
+    if (issuers.length > 0) {
       const jwksUrl =
         process.env.KEYCLOAK_JWKS_URL?.trim() ||
-        `${issuer.replace(/\/$/, "")}/protocol/openid-connect/certs`;
-      const verified = await jwtVerify(token, jwksFor(jwksUrl), { issuer });
+        `${issuers[0].replace(/\/$/, "")}/protocol/openid-connect/certs`;
+      const verified = await jwtVerify(token, jwksFor(jwksUrl), {
+        issuer: issuers.length === 1 ? issuers[0] : issuers,
+      });
       payload = verified.payload;
     } else if (hmac) {
       const verified = await jwtVerify(token, new TextEncoder().encode(hmac), {

@@ -40,11 +40,14 @@
         "http://localhost:43123",
         "http://127.0.0.1:43123",
         "http://localhost:43124",
-        "http://127.0.0.1:43124"
+        "http://127.0.0.1:43124",
+        "http://localhost:8080/*",
+        "http://127.0.0.1:8080/*",
+        "http://localhost:8080",
+        "http://127.0.0.1:8080"
       ],
       "attributes": {
-        "pkce.code.challenge.method": "S256",
-        "post.logout.redirect.uris": "https://*##http://localhost:43123##http://127.0.0.1:43123##http://localhost:43124##http://127.0.0.1:43124##http://localhost:3000##http://127.0.0.1:3000##http://localhost:3002##http://127.0.0.1:3002##http://localhost:4173"
+        "post.logout.redirect.uris": "https://*##http://localhost:43123##http://127.0.0.1:43123##http://localhost:43124##http://127.0.0.1:43124##http://localhost:3000##http://127.0.0.1:3000##http://localhost:3002##http://127.0.0.1:3002##http://localhost:4173##http://localhost:8080##http://127.0.0.1:8080"
       },
       "webOrigins": ["+"],
       "protocolMappers": [
