@@ -6,6 +6,10 @@
 - [Журнал решений](docs/decisions.md)
 - [План по пунктам кейса](docs/hackathon-plan.md)
 - [Кто что делает](docs/roles.md)
+- [Запуск](docs/run.md)
+- [Локальная модель](docs/local-model.md)
+- [Ограничения](docs/limits.md)
+- [Отчёт об ИИ](docs/ai-usage.md)
 
 
 Скиллы и агенты Cursor, чтобы за 7–10 часов собрать контроль прохода на стройке. Кейс документов соискателей снят.
@@ -45,7 +49,7 @@ npm run dev
 
 ## Модель
 
-Слой один, переключение `MODEL_PROVIDER`. Нужны **два** рабочих провайдера: внешний (GigaChat можно) и локальный (Ollama или аналог). Скилл `/model-layer`.
+Слой один, переключение `MODEL_PROVIDER=gigachat|ollama`. Внешний — GigaChat, локальный — Ollama `qwen3:4b`. Как переключить — [docs/local-model.md](docs/local-model.md). Скилл `/model-layer`.
 
 ## Где что
 
@@ -62,3 +66,4 @@ AGENTS.md
 
 - [Схема решения](docs/architecture.md)
 - [Журнал решений](docs/decisions.md)
+- [Запуск](docs/run.md), [локальная модель](docs/local-model.md), [ограничения](docs/limits.md), [отчёт об ИИ](docs/ai-usage.md)

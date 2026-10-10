@@ -2,7 +2,7 @@ import type pg from "pg";
 import { requireRoles } from "../auth.js";
 import { asString, denyJson, readJson } from "../http.js";
 import { writeJournal } from "../journal.js";
-import { formulatePrompt, getModel, modelAddedNumber } from "../model/index.js";
+import { completeText, formulatePrompt } from "./outbound.js";
 import type { ApiApp } from "../types.js";
 
 type Fact = {
@@ -11,6 +11,9 @@ type Fact = {
   rows: unknown[];
   empty: boolean;
 };
+
+// 4 часа — порог вопроса «кто меньше 4 часов». Новое число не вводим.
+const SHORT_SHIFT_SECONDS = 14400;
 
 function moscowToday(): string {
   return new Intl.DateTimeFormat("en-CA", {
@@ -36,7 +39,10 @@ function routeQuestion(question: string): Fact["tool"] | "unknown" {
   const text = question.toLowerCase();
   if (/внутри|на объекте|кто сейчас/.test(text)) return "who_inside";
   if (/4\s*час|четыр/.test(text)) return "under_four_hours";
-  if (/зон|людн|посещ/.test(text)) return "busiest_zone";
+  if ((/люд|человек/.test(text) && /зон|где|как/.test(text)) || /больше всего людей/.test(text)) {
+    return "busiest_people";
+  }
+  if (/зон|посещ/.test(text)) return "busiest_zone";
   if (/отказ/.test(text)) return "denials";
   if (/сводк|итог/.test(text)) return "summary";
   return "unknown";
@@ -77,8 +83,8 @@ async function underFour(pool: pg.Pool, day: string): Promise<Fact> {
      WHERE (s.started_at AT TIME ZONE 'Europe/Moscow')::date = $1::date
      GROUP BY p.id, p.full_name
      HAVING SUM(EXTRACT(EPOCH FROM (COALESCE(s.ended_at, now()) - s.started_at))) > 0
-        AND SUM(EXTRACT(EPOCH FROM (COALESCE(s.ended_at, now()) - s.started_at))) < 14400`,
-    [day],
+        AND SUM(EXTRACT(EPOCH FROM (COALESCE(s.ended_at, now()) - s.started_at))) < $2`,
+    [day, SHORT_SHIFT_SECONDS],
   );
   return {
     tool: "under_four_hours",
@@ -88,7 +94,7 @@ async function underFour(pool: pg.Pool, day: string): Promise<Fact> {
   };
 }
 
-async function busiest(pool: pg.Pool, day: string): Promise<Fact> {
+async function busiestVisits(pool: pg.Pool, day: string): Promise<Fact> {
   const { rows } = await pool.query<{ name: string; visits: number }>(
     `SELECT z.name, COUNT(v.id)::int AS visits
      FROM zones z
@@ -102,8 +108,29 @@ async function busiest(pool: pg.Pool, day: string): Promise<Fact> {
   const leaders = rows.filter((row) => row.visits === top && top > 0);
   return {
     tool: "busiest_zone",
-    numbers: { day, visits: top },
+    numbers: { day, visits: top, metric: "посещение" },
     rows: leaders.map((row) => ({ zone_name: row.name, visits: row.visits })),
+    empty: top === 0,
+  };
+}
+
+async function busiestPeople(pool: pg.Pool, day: string): Promise<Fact> {
+  const { rows } = await pool.query<{ name: string; people: number }>(
+    `SELECT z.name, COUNT(DISTINCT s.person_id)::int AS people
+     FROM zones z
+     LEFT JOIN visits v ON v.zone_id = z.id
+       AND (v.started_at AT TIME ZONE 'Europe/Moscow')::date = $1::date
+     LEFT JOIN shifts s ON s.id = v.shift_id
+     GROUP BY z.id, z.name
+     ORDER BY people DESC, z.name`,
+    [day],
+  );
+  const top = rows[0]?.people ?? 0;
+  const leaders = rows.filter((row) => row.people === top && top > 0);
+  return {
+    tool: "busiest_people",
+    numbers: { day, people: top, metric: "человек" },
+    rows: leaders.map((row) => ({ zone_name: row.name, people: row.people })),
     empty: top === 0,
   };
 }
@@ -129,7 +156,13 @@ async function denials(pool: pg.Pool, from: string, to: string): Promise<Fact> {
 }
 
 async function summary(pool: pg.Pool, from: string, to: string): Promise<Fact> {
-  const { rows } = await pool.query<{ people: number; shifts: number; denials: number }>(
+  const { rows } = await pool.query<{
+    people: number;
+    shifts: number;
+    refusals: number;
+    deviations: number;
+    shifts_without_points: number;
+  }>(
     `SELECT
        (SELECT COUNT(DISTINCT person_id)::int FROM shifts
          WHERE (started_at AT TIME ZONE 'Europe/Moscow')::date >= $1::date
@@ -140,19 +173,47 @@ async function summary(pool: pg.Pool, from: string, to: string): Promise<Fact> {
        (SELECT COUNT(*)::int FROM journal
          WHERE decision = 'deny'
            AND (at AT TIME ZONE 'Europe/Moscow')::date >= $1::date
-           AND (at AT TIME ZONE 'Europe/Moscow')::date <= $2::date) AS denials`,
-    [from, to],
+           AND (at AT TIME ZONE 'Europe/Moscow')::date <= $2::date) AS refusals,
+       (SELECT COUNT(*)::int FROM shifts s
+         WHERE (s.started_at AT TIME ZONE 'Europe/Moscow')::date >= $1::date
+           AND (s.started_at AT TIME ZONE 'Europe/Moscow')::date <= $2::date
+           AND EXTRACT(EPOCH FROM (COALESCE(s.ended_at, now()) - s.started_at)) > 0
+           AND EXTRACT(EPOCH FROM (COALESCE(s.ended_at, now()) - s.started_at)) < $3) AS deviations,
+       (SELECT COUNT(*)::int FROM shifts s
+         WHERE s.ended_at IS NULL
+           AND (s.started_at AT TIME ZONE 'Europe/Moscow')::date <= $2::date
+           AND NOT EXISTS (SELECT 1 FROM locations l WHERE l.shift_id = s.id)) AS shifts_without_points`,
+    [from, to, SHORT_SHIFT_SECONDS],
   );
-  const row = rows[0] ?? { people: 0, shifts: 0, denials: 0 };
+  const row = rows[0] ?? { people: 0, shifts: 0, refusals: 0, deviations: 0, shifts_without_points: 0 };
+  const anomalies = row.refusals + row.shifts_without_points;
+  const numbers = {
+    from,
+    to,
+    people: row.people,
+    shifts: row.shifts,
+    deviations: row.deviations,
+    refusals: row.refusals,
+    anomalies,
+    shifts_without_points: row.shifts_without_points,
+  };
+  const empty = row.people + row.shifts + row.refusals + row.deviations + anomalies === 0;
   return {
     tool: "summary",
-    numbers: { from, to, people: row.people, shifts: row.shifts, denials: row.denials },
-    rows: [row],
-    empty: false,
+    numbers,
+    rows: [numbers],
+    empty,
   };
 }
 
-function fallbackText(fact: Fact): string {
+function zoneList(fact: Fact): string {
+  return fact.rows
+    .map((row) => (row && typeof row === "object" && "zone_name" in row ? String((row as { zone_name: unknown }).zone_name) : ""))
+    .filter(Boolean)
+    .join("», «");
+}
+
+function canonical(fact: Fact): string {
   if (fact.empty) return "Данных нет.";
   if (fact.tool === "who_inside") {
     const count = Number(fact.numbers.count ?? 0);
@@ -160,38 +221,130 @@ function fallbackText(fact: Fact): string {
     const names = fact.rows
       .map((row) => (row && typeof row === "object" && "full_name" in row ? String((row as { full_name: unknown }).full_name) : ""))
       .filter(Boolean);
-    return `На объекте: ${names.join(", ")}. Формулировка модели недоступна, цифры из базы.`;
+    return `На объекте: ${names.join(", ")}.`;
+  }
+  if (fact.tool === "busiest_people") {
+    return `В зоне «${zoneList(fact)}» больше всего людей: ${fact.numbers.people} человек.`;
+  }
+  if (fact.tool === "busiest_zone") {
+    return `Больше всего посещений в зоне «${zoneList(fact)}»: ${fact.numbers.visits}.`;
   }
   if (fact.tool === "summary") {
-    return `Людей ${fact.numbers.people}, смен ${fact.numbers.shifts}, отказов ${fact.numbers.denials}. Формулировка модели недоступна, цифры из базы.`;
+    return `Людей ${fact.numbers.people}, смен ${fact.numbers.shifts}, отклонений ${fact.numbers.deviations}, отказов ${fact.numbers.refusals}, аномалий ${fact.numbers.anomalies}.`;
+  }
+  if (fact.tool === "under_four_hours") {
+    const names = fact.rows
+      .map((row) => (row && typeof row === "object" && "full_name" in row ? String((row as { full_name: unknown }).full_name) : ""))
+      .filter(Boolean);
+    return `Меньше 4 часов: ${names.join(", ")}. Всего ${fact.numbers.count}.`;
+  }
+  if (fact.tool === "denials") {
+    return `Отказов ${fact.numbers.count}.`;
   }
   return "Формулировка модели недоступна. Цифры ниже из базы.";
 }
 
-async function answer(pool: pg.Pool, fact: Fact, question: string) {
+export function substituteByField(
+  text: string,
+  numbers: Record<string, number | string | null>,
+): { text: string; used: string[] } {
+  const used: string[] = [];
+  const rendered = text.replace(/\{([A-Za-z_][A-Za-z0-9_]*)\}/g, (full, name: string) => {
+    if (!Object.prototype.hasOwnProperty.call(numbers, name)) return full;
+    const value = numbers[name];
+    if (value === null || value === undefined) return full;
+    used.push(name);
+    return String(value);
+  });
+  return { text: rendered, used };
+}
+
+function strayNumber(text: string, numbers: Record<string, number | string | null>, used: string[]): boolean {
+  const allowed = new Set<string>();
+  for (const name of used) {
+    const value = numbers[name];
+    if (typeof value === "number" || typeof value === "string") {
+      for (const match of String(value).matchAll(/\d+(?:[.,]\d+)?/g)) {
+        allowed.add(match[0]);
+        allowed.add(match[0].replace(",", "."));
+      }
+    }
+  }
+  const found = text.match(/\d+(?:[.,]\d+)?/g) ?? [];
+  return found.some((token) => !allowed.has(token) && !allowed.has(token.replace(",", ".")));
+}
+
+export function renderModelText(
+  modelText: string,
+  numbers: Record<string, number | string | null>,
+  canonicalText: string,
+  tool: string,
+): { text: string; usedModel: boolean } {
+  const { text, used } = substituteByField(modelText, numbers);
+  const numericNames = Object.entries(numbers)
+    .filter(([, value]) => typeof value === "number")
+    .map(([name]) => name);
+  if (numericNames.length > 0 && !numericNames.some((name) => used.includes(name))) {
+    return { text: canonicalText, usedModel: false };
+  }
+  if (strayNumber(text, numbers, used)) return { text: canonicalText, usedModel: false };
+  if (tool === "busiest_people" && (!text.includes("человек") || text.includes("посещен"))) {
+    return { text: canonicalText, usedModel: false };
+  }
+  if (tool === "summary") {
+    const required = ["people", "shifts", "deviations", "refusals", "anomalies"];
+    if (required.some((name) => !used.includes(name)) || !text.includes("отклонен") || !text.includes("аномал")) {
+      return { text: canonicalText, usedModel: false };
+    }
+  }
+  return { text, usedModel: true };
+}
+
+function modelPayload(fact: Fact) {
+  return {
+    tool: fact.tool,
+    fields: Object.keys(fact.numbers),
+    rows: fact.rows.map((row) => {
+      if (!row || typeof row !== "object") return row;
+      const copy: Record<string, unknown> = {};
+      for (const [key, value] of Object.entries(row as Record<string, unknown>)) {
+        if (typeof value === "number") continue;
+        if (typeof value === "string" && /\d/.test(value)) continue;
+        copy[key] = value;
+      }
+      return copy;
+    }),
+  };
+}
+
+async function answer(fact: Fact, question: string) {
   const providerName = (process.env.MODEL_PROVIDER ?? "ollama").trim().toLowerCase() || "ollama";
+  const canonicalText = canonical(fact);
   if (fact.empty) {
     return { text: "Данных нет.", provider: providerName, model_status: "ok" as const, retry: false };
   }
   try {
-    const model = getModel();
     const prompt = await formulatePrompt();
-    const text = await model.complete([
+    const spoken = await completeText([
       { role: "system", content: prompt },
-      { role: "user", content: `Вопрос: ${question}\nФакты: ${JSON.stringify(fact)}` },
+      {
+        role: "user",
+        content: `Вопрос: ${question}\nПоля для подстановки: ${Object.keys(fact.numbers).join(", ")}. Факты без чисел: ${JSON.stringify(modelPayload(fact))}`,
+      },
     ]);
-    if (modelAddedNumber(text, fact)) {
+    const rendered = renderModelText(spoken.text, fact.numbers, canonicalText, fact.tool);
+    if (!rendered.usedModel) {
       return {
-        text: "Модель добавила число, которого нет в данных. Показываю только факты из базы.",
-        provider: model.id,
+        text: canonicalText,
+        provider: spoken.id,
         model_status: "rejected_ungrounded" as const,
         retry: true,
       };
     }
-    return { text, provider: model.id, model_status: "ok" as const, retry: false };
+    return { text: rendered.text, provider: spoken.id, model_status: "ok" as const, retry: false };
   } catch {
     return {
-      text: fallbackText(fact),
+      text: canonicalText,
       provider: providerName,
       model_status: "unavailable" as const,
       retry: true,
@@ -208,7 +361,7 @@ export function registerAssistant(app: ApiApp, pool: pg.Pool): void {
     const tool = routeQuestion(question);
     if (tool === "unknown") {
       return c.json({
-        text: "Не понял вопрос. Спросите, кто внутри, кто меньше 4 часов, какая зона люднее, какие отказы или сводку.",
+        text: "Не понял вопрос. Спросите, кто внутри, кто меньше 4 часов, в какой зоне больше всего людей, какие отказы или сводку.",
         facts: { tool: "unknown", numbers: {}, rows: [] },
         provider: process.env.MODEL_PROVIDER ?? "ollama",
         model_status: "ok",
@@ -221,12 +374,14 @@ export function registerAssistant(app: ApiApp, pool: pg.Pool): void {
         ? await whoInside(pool)
         : tool === "under_four_hours"
           ? await underFour(pool, period.from)
-          : tool === "busiest_zone"
-            ? await busiest(pool, period.from)
-            : tool === "denials"
-              ? await denials(pool, period.from, period.to)
-              : await summary(pool, period.from, period.to);
-    const spoken = await answer(pool, fact, question);
+          : tool === "busiest_people"
+            ? await busiestPeople(pool, period.from)
+            : tool === "busiest_zone"
+              ? await busiestVisits(pool, period.from)
+              : tool === "denials"
+                ? await denials(pool, period.from, period.to)
+                : await summary(pool, period.from, period.to);
+    const spoken = await answer(fact, question);
     await writeJournal(pool, {
       actorSub: c.get("user").sub,
       what: "вопрос помощнику",
@@ -250,7 +405,7 @@ export function registerAssistant(app: ApiApp, pool: pg.Pool): void {
       return denyJson(c, 400, "Некорректная дата.");
     }
     const fact = await summary(pool, from, to);
-    const spoken = await answer(pool, fact, "Сводка за период");
+    const spoken = await answer(fact, "Сводка за период");
     await writeJournal(pool, {
       actorSub: c.get("user").sub,
       what: "сводка помощника",

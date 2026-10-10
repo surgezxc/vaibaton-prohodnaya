@@ -1,7 +1,7 @@
 import type pg from "pg";
 import { requireRoles } from "../auth.js";
 import { withTx } from "../db.js";
-import { pointInRing, parseRing } from "../geo.js";
+import { parseRing, pointInRing, projectGps, type CalibrationPoint } from "../geo.js";
 import { asString, denyJson, readJson, russian } from "../http.js";
 import { writeJournal } from "../journal.js";
 import type { ApiApp } from "../types.js";
@@ -90,15 +90,39 @@ export function registerLocations(app: ApiApp, pool: pg.Pool): void {
         const zone = await client.query<{ id: string }>("SELECT id FROM zones WHERE name = $1", [zoneName]);
         zoneId = zone.rows[0]?.id ?? null;
       } else if (lat !== null && lng !== null) {
-        const zones = await client.query<{ id: string; name: string; polygon: unknown }>(
-          "SELECT id, name, polygon FROM zones ORDER BY name",
+        const stored = await client.query<{
+          plan_id: string;
+          pixel_x: number;
+          pixel_y: number;
+          lat: number;
+          lon: number;
+        }>(
+          `SELECT plan_id, pixel_x, pixel_y, lat, lon
+           FROM plan_calibration_points
+           ORDER BY plan_id, idx`,
         );
-        for (const zone of zones.rows) {
-          const ring = parseRing(zone.polygon);
-          if (ring && pointInRing(lng, lat, ring)) {
-            zoneId = zone.id;
-            break;
+        const byPlan = new Map<string, CalibrationPoint[]>();
+        for (const row of stored.rows) {
+          const list = byPlan.get(row.plan_id) ?? [];
+          list.push({ pixel_x: row.pixel_x, pixel_y: row.pixel_y, lat: row.lat, lon: row.lon });
+          byPlan.set(row.plan_id, list);
+        }
+        const zones = await client.query<{ id: string; plan_id: string | null; polygon: unknown }>(
+          "SELECT id, plan_id, polygon FROM zones ORDER BY name",
+        );
+        for (const [planId, points] of byPlan) {
+          if (points.length !== 3) continue;
+          const pixel = projectGps(points, lat, lng);
+          if (!pixel) continue;
+          for (const zone of zones.rows) {
+            if (zone.plan_id !== planId) continue;
+            const ring = parseRing(zone.polygon);
+            if (ring && pointInRing(pixel.x, pixel.y, ring)) {
+              zoneId = zone.id;
+              break;
+            }
           }
+          if (zoneId) break;
         }
       }
 

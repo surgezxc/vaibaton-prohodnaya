@@ -5,7 +5,7 @@ import { withTx } from "../db.js";
 import { asString, denyJson, isUuid, readJson, russian } from "../http.js";
 import { writeJournal } from "../journal.js";
 import type { ApiApp, Direction } from "../types.js";
-import { secretMatches } from "./devices.js";
+import { verifyDeviceSignature } from "./devices.js";
 import { decidePass } from "./decide.js";
 
 function parseDirection(value: unknown): Direction | null {
@@ -70,6 +70,8 @@ export function registerAttempts(app: ApiApp, pool: pg.Pool): void {
     );
   });
 
+  // Отмена только явным запросом: клиент закрыл экран и ещё достучался до API.
+  // Обрыв websocket или wifi сюда не приводит. Молчащий клиент гасит ttl.
   app.post("/attempts/:id/cancel", requireRoles("gate"), async (c) => {
     const id = c.req.param("id");
     if (!isUuid(id)) return denyJson(c, 404, "Попытка не найдена.");
@@ -110,8 +112,7 @@ export function registerAttempts(app: ApiApp, pool: pg.Pool): void {
     if (!body) return denyJson(c, 400, "Некорректный запрос.");
     const sub = c.get("user").sub;
     const nonce = asString(body.nonce);
-    const deviceId = asString(body.device_id);
-    const deviceSecret = asString(body.device_secret);
+    const signature = asString(body.signature);
 
     const result = await withTx(pool, async (client) => {
       const locked = await client.query<{
@@ -163,25 +164,23 @@ export function registerAttempts(app: ApiApp, pool: pg.Pool): void {
         return fail("Учётка не связана с человеком. Обратитесь к администратору.", "NO_SUCH_PERSON");
       }
       const personId = person.rows[0].id;
-      if (!deviceId || !isUuid(deviceId) || !deviceSecret) {
-        return fail("Телефон не привязан к этой попытке.", "PROOF_MISSING");
-      }
-      const device = await client.query<{ id: string; person_id: string; secret_hash: string }>(
-        `SELECT id, person_id, secret_hash FROM devices WHERE id = $1 AND revoked_at IS NULL`,
-        [deviceId],
+      const device = await client.query<{ id: string; public_key: string | null }>(
+        `SELECT id, public_key FROM devices
+         WHERE person_id = $1 AND revoked_at IS NULL
+         ORDER BY bound_at DESC
+         LIMIT 1`,
+        [personId],
       );
-      if (!device.rowCount || device.rows[0].person_id !== personId) {
-        return fail("Чужое устройство. Подтверждение отклонено.", "PROOF_FOREIGN");
-      }
-      if (!secretMatches(deviceSecret, device.rows[0].secret_hash)) {
-        return fail("Секрет устройства не подошёл.", "PROOF_FOREIGN");
+      const publicKey = device.rows[0]?.public_key ?? null;
+      if (!device.rowCount || !publicKey || !verifyDeviceSignature(publicKey, attempt.nonce, signature ?? "")) {
+        return fail("Чужое устройство.", "PROOF_FOREIGN");
       }
 
       await client.query(
         `UPDATE attempts
          SET status = 'scanned', person_id = $2, device_id = $3
          WHERE id = $1`,
-        [attempt.id, personId, deviceId],
+        [attempt.id, personId, device.rows[0].id],
       );
       await writeJournal(client, {
         personId,

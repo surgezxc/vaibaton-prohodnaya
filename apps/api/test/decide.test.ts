@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
+import { generateKeyPairSync, sign, type KeyObject } from "node:crypto";
 import http from "node:http";
 import { after, before, beforeEach, describe, it } from "node:test";
 import { SignJWT } from "jose";
+import { renderModelText } from "../src/modules/assistant.ts";
 import type { Pool } from "pg";
 import { createApp } from "../src/app.ts";
 import { createPool } from "../src/db.ts";
@@ -108,13 +110,28 @@ async function enroll(admin: string, sub: string, name: string): Promise<string>
   return created.json.id as string;
 }
 
-async function bind(worker: string): Promise<{ device_id: string; device_secret: string }> {
-  const device = await api("/devices", "POST", worker, { label: "телефон" });
-  assert.equal(device.status, 201, JSON.stringify(device.json));
+type DeviceKey = { spki: string; privateKey: KeyObject };
+
+function createDeviceKey(): DeviceKey {
+  const { publicKey, privateKey } = generateKeyPairSync("ec", { namedCurve: "P-256" });
   return {
-    device_id: device.json.device_id as string,
-    device_secret: device.json.device_secret as string,
+    spki: publicKey.export({ format: "der", type: "spki" }).toString("base64"),
+    privateKey,
   };
+}
+
+function signatureFor(device: DeviceKey, nonce: string): string {
+  return sign("sha256", Buffer.from(nonce, "utf8"), {
+    key: device.privateKey,
+    dsaEncoding: "ieee-p1363",
+  }).toString("base64url");
+}
+
+async function bind(worker: string, device = createDeviceKey()): Promise<DeviceKey & { device_id: string }> {
+  const response = await api("/devices", "POST", worker, { public_key: device.spki, label: "телефон" });
+  assert.equal(response.status, 201, JSON.stringify(response.json));
+  assert.equal(response.json.device_secret, undefined);
+  return { ...device, device_id: response.json.device_id as string };
 }
 
 async function openAttempt(gate: string, direction: "in" | "out") {
@@ -130,13 +147,12 @@ async function scan(
   worker: string,
   attemptId: string,
   nonce: string,
-  device: { device_id: string; device_secret: string },
+  device: DeviceKey,
   extra: Record<string, unknown> = {},
 ) {
   const response = await api(`/attempts/${attemptId}/scan`, "POST", worker, {
     nonce,
-    device_id: device.device_id,
-    device_secret: device.device_secret,
+    signature: signatureFor(device, nonce),
     ...extra,
   });
   assert.equal(response.json.confirmed, true, JSON.stringify(response.json));
@@ -170,6 +186,8 @@ describe("decide", () => {
       TRUNCATE journal, visits, locations, shifts, attempts, devices, people
       RESTART IDENTITY CASCADE
     `);
+    await pool.query("DELETE FROM plan_calibration_points");
+    await pool.query("UPDATE zones SET polygon = NULL");
   });
 
   it("успешный decide открывает одну смену", async () => {
@@ -416,5 +434,233 @@ describe("decide", () => {
     );
     assert.match(String(journal.rows.at(-1)?.reason), /Нет результата/);
     assert.equal((await pool.query("SELECT count(*)::int AS n FROM shifts")).rows[0].n, 0);
+  });
+
+  it("скопированный JWT без ключа устройства — чужое устройство", async () => {
+    const admin = await token("admin-sub", "admin");
+    const gate = await token("gate-sub", "gate");
+    const worker = await token("worker-a", "worker");
+    const other = await token("worker-b", "worker");
+    await enroll(admin, "worker-a", "Гаджиев Магомед Ибрагимович");
+    await enroll(admin, "worker-b", "Юсупов Тимур Рашидович");
+    const device = await bind(worker);
+    const attempt = await openAttempt(gate, "in");
+
+    const copied = await api(`/attempts/${attempt.attempt_id}/scan`, "POST", worker, {
+      nonce: attempt.nonce,
+      signature: signatureFor(createDeviceKey(), attempt.nonce),
+      person_id: "someone-else",
+    });
+    assert.equal(copied.json.confirmed, false);
+    assert.match(String(copied.json.reason), /чужое устройство/i);
+
+    const missing = await api(`/attempts/${attempt.attempt_id}/scan`, "POST", worker, {
+      nonce: attempt.nonce,
+    });
+    assert.match(String(missing.json.reason), /чужое устройство/i);
+
+    const foreign = await bind(other);
+    const stolen = await api(`/attempts/${attempt.attempt_id}/scan`, "POST", other, {
+      nonce: attempt.nonce,
+      signature: signatureFor(device, attempt.nonce),
+    });
+    assert.equal(stolen.json.confirmed, false);
+    assert.match(String(stolen.json.reason), /чужое устройство/i);
+
+    await scan(worker, attempt.attempt_id, attempt.nonce, device);
+    const stored = await pool.query<{ person_id: string }>(
+      "SELECT person_id FROM attempts WHERE id = $1",
+      [attempt.attempt_id],
+    );
+    const owner = await pool.query<{ id: string }>("SELECT id FROM people WHERE keycloak_sub = 'worker-a'");
+    assert.equal(stored.rows[0].person_id, owner.rows[0].id);
+    assert.notEqual(foreign.device_id, device.device_id);
+  });
+
+  it("обрыв связи не отменяет попытку; cancel и ttl — да", async () => {
+    const admin = await token("admin-sub", "admin");
+    const gate = await token("gate-sub", "gate");
+    const worker = await token("worker-a", "worker");
+    await enroll(admin, "worker-a", "Иванов Сергей Петрович");
+    const device = await bind(worker);
+
+    const live = await openAttempt(gate, "in");
+    await scan(worker, live.attempt_id, live.nonce, device);
+    const status = await pool.query<{ status: string }>("SELECT status FROM attempts WHERE id = $1", [live.attempt_id]);
+    assert.equal(status.rows[0].status, "scanned");
+    const allowed = await api(`/attempts/${live.attempt_id}/decide`, "POST", gate, {
+      nonce: live.nonce,
+      image_base64: "aW1hZ2U=",
+    });
+    assert.equal(allowed.json.decision, "allow");
+
+    const closed = await openAttempt(gate, "out");
+    await scan(worker, closed.attempt_id, closed.nonce, device);
+    const cancel = await api(`/attempts/${closed.attempt_id}/cancel`, "POST", gate);
+    assert.equal(cancel.status, 200);
+    const denied = await api(`/attempts/${closed.attempt_id}/decide`, "POST", gate, {
+      nonce: closed.nonce,
+      image_base64: "aW1hZ2U=",
+    });
+    assert.equal(denied.json.decision, "deny");
+    assert.match(String(denied.json.reason), /отмен/);
+
+    const stale = await openAttempt(gate, "out");
+    await scan(worker, stale.attempt_id, stale.nonce, device);
+    await pool.query("UPDATE attempts SET expires_at = now() - interval '1 second' WHERE id = $1", [stale.attempt_id]);
+    const expired = await api(`/attempts/${stale.attempt_id}/decide`, "POST", gate, {
+      nonce: stale.nonce,
+      image_base64: "aW1hZ2U=",
+    });
+    assert.equal(expired.json.decision, "deny");
+    assert.match(String(expired.json.reason), /устар/);
+    assert.equal((await openShifts()).length, 1);
+  });
+
+  it("сервер подставляет числа по имени поля", () => {
+    const numbers = { people: 12, shifts: 3, deviations: 1, refusals: 0, anomalies: 2 };
+    const moved = renderModelText("Отказов 12, людей 0.", numbers, "КАНОН", "summary");
+    assert.equal(moved.usedModel, false);
+    assert.equal(moved.text, "КАНОН");
+    const kept = renderModelText(
+      "Людей {people}, смен {shifts}, отклонений {deviations}, отказов {refusals}, аномалий {anomalies}.",
+      numbers,
+      "КАНОН",
+      "summary",
+    );
+    assert.equal(kept.usedModel, true);
+    assert.equal(kept.text, "Людей 12, смен 3, отклонений 1, отказов 0, аномалий 2.");
+    const visitsWord = renderModelText("В зоне {people} посещений.", { people: 4, metric: "человек" }, "КАНОН", "busiest_people");
+    assert.equal(visitsWord.usedModel, false);
+    const peopleWord = renderModelText("В зоне людей: {people} человек.", { people: 4, metric: "человек" }, "КАНОН", "busiest_people");
+    assert.equal(peopleWord.text, "В зоне людей: 4 человек.");
+  });
+
+  it("тепло остаётся на посещениях, вопрос про людей считает человек", async () => {
+    const manager = await token("manager-sub", "manager");
+    await pool.query(`
+      INSERT INTO people (id, full_name) VALUES
+        ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1', 'Иванов Сергей Петрович'),
+        ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2', 'Петров Андрей Николаевич'),
+        ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3', 'Смирнова Ольга Викторовна')
+    `);
+    await pool.query(`
+      INSERT INTO shifts (id, person_id) VALUES
+        ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1'),
+        ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2'),
+        ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb3', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3')
+    `);
+    await pool.query(`
+      INSERT INTO visits (shift_id, zone_id) VALUES
+        ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1', '11111111-1111-4111-8111-111111111101'),
+        ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1', '11111111-1111-4111-8111-111111111101'),
+        ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2', '11111111-1111-4111-8111-111111111101'),
+        ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb3', '11111111-1111-4111-8111-111111111102'),
+        ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb3', '11111111-1111-4111-8111-111111111102'),
+        ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb3', '11111111-1111-4111-8111-111111111102'),
+        ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb3', '11111111-1111-4111-8111-111111111102'),
+        ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb3', '11111111-1111-4111-8111-111111111102')
+    `);
+
+    const heat = await api("/analytics/heat", "GET", manager);
+    assert.equal(heat.json.metric, "посещения");
+    const zones = heat.json.zones as Array<{ name: string; visits: number }>;
+    const beton = zones.find((zone) => zone.name === "Бетон");
+    const pit = zones.find((zone) => zone.name === "Котлован");
+    assert.equal(beton?.visits, 3);
+    assert.equal(pit?.visits, 5);
+
+    const asked = await api("/assistant/ask", "POST", manager, {
+      question: "в какой зоне больше всего людей",
+    });
+    assert.match(String(asked.json.text), /Бетон/);
+    assert.match(String(asked.json.text), /человек/);
+    assert.doesNotMatch(String(asked.json.text), /посещен/);
+    const facts = asked.json.facts as { tool: string; numbers: { people: number; metric: string } };
+    assert.equal(facts.tool, "busiest_people");
+    assert.equal(facts.numbers.people, 2);
+    assert.equal(facts.numbers.metric, "человек");
+  });
+
+  it("сводка считает отклонения и аномалии в SQL", async () => {
+    const manager = await token("manager-sub", "manager");
+    await pool.query(`
+      INSERT INTO people (id, full_name) VALUES
+        ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1', 'Иванов Сергей Петрович'),
+        ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2', 'Петров Андрей Николаевич')
+    `);
+    await pool.query(`
+      INSERT INTO shifts (person_id, started_at, ended_at, duration_seconds) VALUES
+        ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1', now() - interval '2 hours', now() - interval '1 hour', 3600)
+    `);
+    await pool.query(`
+      INSERT INTO shifts (person_id, started_at) VALUES
+        ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2', now() - interval '6 hours')
+    `);
+    await pool.query(
+      `INSERT INTO journal (what, decision, reason) VALUES ('отказ', 'deny', 'Лицо не совпало с эталоном.')`,
+    );
+    const summary = await api("/assistant/summary", "POST", manager, { from: "2000-01-01", to: "2100-01-01" });
+    const numbers = (summary.json.facts as { numbers: Record<string, number> }).numbers;
+    assert.equal(numbers.people, 2);
+    assert.equal(numbers.shifts, 2);
+    assert.equal(numbers.deviations, 1);
+    assert.equal(numbers.refusals, 1);
+    assert.equal(numbers.shifts_without_points, 1);
+    assert.equal(numbers.anomalies, 2);
+    assert.match(String(summary.json.text), /отклонен/);
+    assert.match(String(summary.json.text), /аномал/);
+    assert.match(String(summary.json.text), /Людей 2/);
+    assert.match(String(summary.json.text), /аномалий 2/);
+  });
+
+  it("три точки плана кладут GPS на чертёж до полигона", async () => {
+    const admin = await token("admin-sub", "admin");
+    const worker = await token("worker-a", "worker");
+    const personId = await enroll(admin, "worker-a", "Ким Денис Сергеевич");
+    await pool.query("INSERT INTO shifts (person_id) VALUES ($1)", [personId]);
+    const plans = await api("/plans", "GET", admin);
+    const planId = (plans.json.plans as Array<{ id: string; name: string }>).find((plan) => plan.name === "Схема объекта")?.id;
+    assert.ok(planId);
+
+    const collinear = await api(`/plans/${planId}/calibration`, "PUT", admin, {
+      points: [
+        { pixel_x: 0, pixel_y: 0, lat: 0, lon: 0 },
+        { pixel_x: 10, pixel_y: 10, lat: 1, lon: 1 },
+        { pixel_x: 20, pixel_y: 20, lat: 2, lon: 2 },
+      ],
+    });
+    assert.equal(collinear.status, 400);
+
+    const saved = await api(`/plans/${planId}/calibration`, "PUT", admin, {
+      points: [
+        { pixel_x: 0, pixel_y: 0, lat: 0, lon: 0 },
+        { pixel_x: 100, pixel_y: 0, lat: 0, lon: 1 },
+        { pixel_x: 0, pixel_y: 100, lat: 1, lon: 0 },
+      ],
+    });
+    assert.equal(saved.status, 200, JSON.stringify(saved.json));
+    const loaded = await api(`/plans/${planId}/calibration`, "GET", admin);
+    assert.equal((loaded.json.points as unknown[]).length, 3);
+
+    const polygon = await api("/zones/11111111-1111-4111-8111-111111111101/polygon", "PUT", admin, {
+      polygon: [
+        [0, 0],
+        [100, 0],
+        [100, 100],
+        [0, 100],
+      ],
+    });
+    assert.equal(polygon.status, 200, JSON.stringify(polygon.json));
+
+    const hit = await api("/locations", "POST", worker, { source: "gps", lat: 0.2, lng: 0.3 });
+    assert.equal(hit.status, 201, JSON.stringify(hit.json));
+    assert.equal(hit.json.zone_id, "11111111-1111-4111-8111-111111111101");
+
+    await pool.query("DELETE FROM plan_calibration_points WHERE plan_id = $1", [planId]);
+    await pool.query("UPDATE locations SET recorded_at = now() - interval '5 minutes'");
+    const miss = await api("/locations", "POST", worker, { source: "gps", lat: 0.2, lng: 0.3 });
+    assert.equal(miss.status, 201, JSON.stringify(miss.json));
+    assert.equal(miss.json.zone_id, null);
   });
 });

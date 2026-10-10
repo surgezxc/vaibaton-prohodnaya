@@ -1,7 +1,7 @@
 import type pg from "pg";
 import { requireRoles } from "../auth.js";
 import { withTx } from "../db.js";
-import { countFaces, embedFace, FaceNotReady, FaceResultMissing, normalizeImage } from "../face/client.js";
+import { countFaces, embedFace, FaceNotReady, FaceResultMissing, normalizeImage } from "./outbound.js";
 import { asString, denyJson, isUuid, readJson } from "../http.js";
 import { writeJournal } from "../journal.js";
 import type { ApiApp } from "../types.js";

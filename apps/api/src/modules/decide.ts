@@ -1,6 +1,6 @@
 import type pg from "pg";
 import { isUniqueViolation, withTx } from "../db.js";
-import { compareFace, FaceNotReady, FaceResultMissing, normalizeImage, type CompareResult } from "../face/client.js";
+import { compareFace, FaceNotReady, FaceResultMissing, normalizeImage, type CompareResult } from "./outbound.js";
 import { decisionBody } from "../http.js";
 import { writeJournal } from "../journal.js";
 import type { Direction, ReasonCode } from "../types.js";
@@ -75,6 +75,9 @@ export async function decidePass(
   },
 ): Promise<{ http: 200 | 404; body: Record<string, unknown> }> {
   return withTx(pool, async (client) => {
+    // Та же транзакция, что и журнал. Строка перечитана и заблокирована:
+    // не отменена, не использована, ttl жив. Обрыв websocket или wifi
+    // статус не меняет — cancelled ставит только POST /cancel, пока клиент достучался.
     const locked = await client.query<AttemptRow>(
       `SELECT id, direction, nonce, status, used, person_id, (expires_at <= now()) AS stale
        FROM attempts WHERE id = $1 FOR UPDATE`,
@@ -105,11 +108,6 @@ export async function decidePass(
       });
     };
 
-    if (attempt.used || attempt.status === "decided") {
-      await journal(TEXT.replay, "deny", "REPLAY");
-      return outcome("deny", TEXT.replay, "REPLAY");
-    }
-
     const consume = async (reason: string) => {
       await client.query(
         `UPDATE attempts
@@ -123,6 +121,11 @@ export async function decidePass(
       await consume(TEXT.cancelled);
       await journal(TEXT.cancelled, "deny", "EXPIRED");
       return outcome("deny", TEXT.cancelled, "EXPIRED");
+    }
+
+    if (attempt.used || attempt.status === "decided") {
+      await journal(TEXT.replay, "deny", "REPLAY");
+      return outcome("deny", TEXT.replay, "REPLAY");
     }
 
     if (attempt.stale) {
