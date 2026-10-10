@@ -1,6 +1,6 @@
-# Минимальный стенд: postgres, keycloak, api.
-# alisondl333-oss дальше правит этот файл и добавит web и face.
-# Пока face нет в compose, decide отвечает «Распознавание лиц не готово» и пишет отказ в журнал.
+# Стенд: postgres, keycloak, api, face.
+# face — сборка Саши, порог 0.74, каталог не переносить.
+# web, если он уже есть в этом файле, оставлять.
 
 services:
   postgres:
@@ -63,5 +63,16 @@ services:
       postgres:
         condition: service_healthy
 
+  face:
+    build: ./deliverables/a-shorokhov-face-model/services/face
+    environment:
+      FACE_MODEL_ROOT: /models
+      FACE_MATCH_THRESHOLD: "0.74"
+      FACE_DETECT_CONFIDENCE: "0.25"
+      FACE_LIVENESS_THRESHOLD: "0.8"
+    volumes:
+      - face_models:/models
+
 volumes:
   pgdata:
+  face_models:
