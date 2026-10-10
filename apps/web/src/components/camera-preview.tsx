@@ -34,25 +34,45 @@ export function CameraPreview({ title, description, onCapture, onQr, enabled = t
 
   const onQrRef = useRef(onQr); onQrRef.current = onQr;
   useEffect(() => {
-    if (!active || !onQrRef.current) return;
+    if (!active) return;
     const canvas = document.createElement("canvas");
     const context = canvas.getContext("2d", { willReadFrequently: true });
-    let last = "";
-    const timer = setInterval(() => {
-      if (!video.current?.videoWidth || !context || document.hidden) return;
-      const scale = Math.min(1, 480 / video.current.videoWidth);
-      canvas.width = Math.round(video.current.videoWidth * scale);
-      canvas.height = Math.round(video.current.videoHeight * scale);
-      if (!canvas.height) return;
-      context.drawImage(video.current, 0, 0, canvas.width, canvas.height);
+    let stopped = false;
+    let timer = 0;
+    let rejected = "";
+    const scan = () => {
+      if (stopped) return;
+      const source = video.current;
+      const accept = onQrRef.current;
+      if (!source?.videoWidth || !source.videoHeight || !context || !accept || document.hidden) {
+        timer = window.setTimeout(scan, 80);
+        return;
+      }
+      canvas.width = source.videoWidth;
+      canvas.height = source.videoHeight;
+      context.drawImage(source, 0, 0, canvas.width, canvas.height);
       const image = context.getImageData(0, 0, canvas.width, canvas.height);
       const text = decodeQr(image.data, image.width, image.height);
-      if (text && text !== last) {
-        last = text;
-        if (onQrRef.current?.(text)) stop();
+      if (stopped) return;
+      if (text && text !== rejected) {
+        const take = onQrRef.current;
+        if (!take) {
+          timer = window.setTimeout(scan, 80);
+          return;
+        }
+        if (take(text)) {
+          stop();
+          return;
+        }
+        rejected = text;
       }
-    }, 250);
-    return () => clearInterval(timer);
+      timer = window.setTimeout(scan, 80);
+    };
+    timer = window.setTimeout(scan, 80);
+    return () => {
+      stopped = true;
+      window.clearTimeout(timer);
+    };
   }, [active, stop]);
 
   async function start() {

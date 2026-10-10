@@ -15,9 +15,9 @@ function parseDirection(value: unknown): Direction | null {
 }
 
 function ttlSeconds(): number {
-  const parsed = Number(process.env.ATTEMPT_TTL_SECONDS ?? "25");
-  if (!Number.isFinite(parsed) || parsed < 5) return 25;
-  return Math.floor(parsed);
+  const parsed = Number(process.env.ATTEMPT_TTL_SECONDS ?? "120");
+  if (!Number.isFinite(parsed)) return 120;
+  return Math.max(120, Math.floor(parsed));
 }
 
 export function registerAttempts(app: ApiApp, pool: pg.Pool): void {

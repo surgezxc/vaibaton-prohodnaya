@@ -18,7 +18,7 @@ export function useAttemptStatus(id: string | null, subject: string | null, toke
     let stopped = false;
     let terminal = false;
     let reading = false;
-    let deadline = Date.now() + 90000;
+    let deadline = Date.now() + 160000;
     let timer: ReturnType<typeof setTimeout>;
     async function read() {
       if (stopped || terminal || reading || document.hidden) return;

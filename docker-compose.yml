@@ -62,7 +62,7 @@ services:
       OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3:4b}
       GIGACHAT_API_KEY: ${GIGACHAT_API_KEY:-}
       GIGACHAT_MODEL: ${GIGACHAT_MODEL:-GigaChat}
-      ATTEMPT_TTL_SECONDS: 25
+      ATTEMPT_TTL_SECONDS: 120
       WEB_ORIGIN: "https://${LAN_IP:?Задайте LAN_IP в .env — адрес ноутбука в Wi-Fi}:8443,http://${LAN_IP}:8080,http://localhost:43123,http://127.0.0.1:43123"
     ports:
       - "3001:3001"

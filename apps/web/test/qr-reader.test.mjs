@@ -19,5 +19,12 @@ test('распознаёт QR из кадра и передаёт ту же по
   }
   assert.equal(decodeQr(data, width, width), text);
   assert.deepEqual(parseAttempt(decodeQr(data, width, width), origin), { attempt_id: id, nonce });
+  const inverted = new Uint8ClampedArray(data);
+  for (let i = 0; i < inverted.length; i += 4) {
+    inverted[i] = 255 - inverted[i];
+    inverted[i + 1] = 255 - inverted[i + 1];
+    inverted[i + 2] = 255 - inverted[i + 2];
+  }
+  assert.equal(decodeQr(inverted, width, width), text);
   assert.equal(decodeQr(new Uint8ClampedArray(width * width * 4).fill(255), width, width), null);
 });

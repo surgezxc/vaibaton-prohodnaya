@@ -109,7 +109,8 @@ button:disabled {
 @media (prefers-reduced-motion: no-preference) {
 .screen .button, .screen .role-card { transition: background-color .15s, border-color .15s; } }
 .screen .account-panel { margin-bottom: 20px; }
-.screen .qr-image { max-width: 100%; height: auto; margin-bottom: 14px; }
+.screen .qr-stage-live { background: #ffffff; border-color: #182820; }
+.screen .qr-image { width: min(100%, 480px); min-width: min(100%, 360px); height: auto; margin-bottom: 14px; background: #ffffff; image-rendering: pixelated; }
 .screen .captured-frame { max-width: 240px; width: 100%; border-radius: 10px; display: block; margin-bottom: 18px; }
 .screen .capture-button { margin-top: 12px; }
 .screen .manual-qr { margin-top: 20px; }

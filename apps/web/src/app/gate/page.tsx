@@ -65,7 +65,7 @@ export default function GatePage() {
       active.current = created; setAttempt(created); setNow(Date.now());
       const url = new URL("/phone", location.origin);
       url.hash = new URLSearchParams({ attempt: created.attempt_id, nonce: created.nonce }).toString();
-      const image = await QRCode.toDataURL(url.toString(), { width: 280, margin: 4, errorCorrectionLevel: "M" });
+      const image = await QRCode.toDataURL(url.toString(), { width: 480, margin: 4, errorCorrectionLevel: "H", color: { dark: "#000000", light: "#ffffff" } });
       if (version === operation.current) setQr(image);
     } catch (error) { if (version === operation.current) setMessage(errorMessage(error)); }
     finally { if (version === operation.current) { lock.current = false; setBusy(false); } }
@@ -109,8 +109,8 @@ export default function GatePage() {
           <label><input type="radio" name="direction" checked={direction === "in"} onChange={() => setDirection("in")} /><span>Вход на объект</span></label>
           <label><input type="radio" name="direction" checked={direction === "out"} onChange={() => setDirection("out")} /><span>Выход с объекта</span></label>
         </fieldset>
-        <div className="qr-stage">
-          {qr && !expired && !decision ? <img className="qr-image" src={qr} alt="Одноразовый QR для телефона рабочего" width={280} height={280} /> : <span className="qr-outline" aria-hidden="true">QR</span>}
+        <div className={qr && !expired && !decision ? "qr-stage qr-stage-live" : "qr-stage"}>
+          {qr && !expired && !decision ? <img className="qr-image" src={qr} alt="Одноразовый QR для телефона рабочего" width={480} height={480} /> : <span className="qr-outline" aria-hidden="true">QR</span>}
           <strong>{expired && !decision ? "Срок QR истёк" : qr && !decision ? "Рабочий сканирует этот QR" : "Откройте попытку"}</strong>
           {attempt && !decision && !expired && <p>Осталось {Math.max(0, Math.ceil((Date.parse(attempt.expires_at) - now) / 1000))} с. Направление: {attempt.direction === "in" ? "вход" : "выход"}.</p>}
         </div>
