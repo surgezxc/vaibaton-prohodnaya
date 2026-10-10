@@ -2,7 +2,7 @@ import type pg from "pg";
 import { requireRoles } from "../auth.js";
 import { withTx } from "../db.js";
 import { parseRing, pointInRing, projectGps, type CalibrationPoint } from "../geo.js";
-import { asString, denyJson, readJson, russian } from "../http.js";
+import { asString, denyJson, isUuid, readJson, russian } from "../http.js";
 import { writeJournal } from "../journal.js";
 import type { ApiApp } from "../types.js";
 
@@ -22,6 +22,10 @@ export function registerLocations(app: ApiApp, pool: pg.Pool): void {
   app.post("/locations", requireRoles("worker"), async (c) => {
     const body = await readJson(c);
     if (!body) return denyJson(c, 400, "Некорректный запрос.");
+    const expectedShift = asString(body.shift_id);
+    if (body.shift_id !== undefined && (!expectedShift || !isUuid(expectedShift))) {
+      return denyJson(c, 400, "Некорректный идентификатор смены.");
+    }
     const source = asString(body.source);
     if (source !== "gps" && source !== "button") {
       return denyJson(c, 400, "Укажите источник: gps или button.");
@@ -70,6 +74,9 @@ export function registerLocations(app: ApiApp, pool: pg.Pool): void {
         return { ok: false as const, error: reason, status: 422 as const };
       }
       const shiftId = shift.rows[0].id;
+      if (expectedShift && expectedShift !== shiftId) {
+        return { ok: false as const, error: "Смена изменилась. Обновите состояние телефона.", status: 422 as const };
+      }
 
       if (source === "gps") {
         const last = await client.query<{ fresh: boolean }>(

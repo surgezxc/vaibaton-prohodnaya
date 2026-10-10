@@ -1,171 +1,122 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { LoginCard } from "@/components/login-card";
-import { Notice, Panel, RoleWarning, Shell } from "@/components/shell";
-import { QrScanner } from "@/components/qr-scanner";
-import { useSession } from "@/components/use-session";
-import { apiRequest, offlineReason, serverReason } from "@/lib/api";
-import { browserDeviceKey, signNonce } from "@/lib/device-key";
-import { decodePass } from "@/lib/pass-code";
-import type { Session } from "@/lib/session";
-
-const ZONES = ["Бетон", "Котлован", "Курилка"] as const;
-const BOUND = "prohodnaya.device.boundSub";
+import { useEffect, useRef, useState } from "react";
+import { WorkerMovement } from "@/components/worker-movement";
+import { useAttemptStatus } from "@/hooks/use-attempt-status";
+import { CameraPreview } from "@/components/camera-preview";
+import { ScreenShell, Status } from "@/components/screen-shell";
+import { useAuth } from "@/components/auth-provider";
+import { apiRequest, errorMessage } from "@/lib/pass-api";
+import { generateProof, storedProof, signNonce, parseAttempt, type QrAttempt, type StoredProof } from "@/lib/phone-proof";
 
 export default function PhonePage() {
-  const { session, login, logout } = useSession();
-  return (
-    <Shell current="/phone" session={session} onLogout={logout}>
-      <div className="mx-auto max-w-lg">
-        <p className="text-xs font-bold tracking-widest text-emerald-900 uppercase">Телефон рабочего</p>
-        <h1 className="mt-2 text-3xl font-semibold tracking-tight">Мой проход</h1>
-        <p className="mt-2 mb-5 text-stone-600">
-          Один раз привяжите ключ этого браузера, отсканируйте QR контролёра и подпишите код.
-        </p>
-        {session ? (
-          <>
-            <RoleWarning session={session} role="worker" label="рабочий" />
-            <PhoneDesk session={session} />
-          </>
-        ) : (
-          <LoginCard username="worker" onSuccess={login} />
-        )}
-      </div>
-    </Shell>
-  );
-}
-
-function PhoneDesk({ session }: { session: Session }) {
-  const [deviceMessage, setDeviceMessage] = useState("Привязываем ключ телефона…");
-  const [deviceOk, setDeviceOk] = useState(false);
-  const [scanMessage, setScanMessage] = useState<string | null>(null);
-  const [scanOk, setScanOk] = useState<boolean | null>(null);
-  const [zoneMessage, setZoneMessage] = useState<string | null>(null);
-  const [pendingZone, setPendingZone] = useState<string | null>(null);
-  const [binding, setBinding] = useState(false);
-
-  const bind = useCallback(async (force: boolean) => {
-    if (!force && localStorage.getItem(BOUND) === session.sub) {
-      setDeviceOk(true);
-      setDeviceMessage("Ключ этого браузера уже привязан к учётке.");
-      return;
-    }
-    setBinding(true);
-    setDeviceOk(false);
-    try {
-      const key = await browserDeviceKey();
-      const response = await apiRequest("/devices", "POST", session.token, {
-        public_key: key.spki,
-        label: "браузер рабочего",
-      });
-      if (response.offline) {
-        setDeviceMessage(offlineReason);
-        return;
-      }
-      if (response.status !== 201) {
-        setDeviceMessage(serverReason(response.json, "Телефон не привязан."));
-        return;
-      }
-      localStorage.setItem(BOUND, session.sub);
-      setDeviceOk(true);
-      setDeviceMessage(serverReason(response.json, "Телефон привязан."));
-    } catch {
-      setDeviceMessage("Не удалось создать ключ в этом браузере.");
-    } finally {
-      setBinding(false);
-    }
-  }, [session.sub, session.token]);
+  const auth = useAuth();
+  const [proof, setProof] = useState<StoredProof | null>(null);
+  const [attempt, setAttempt] = useState<QrAttempt | null>(null);
+  const [input, setInput] = useState("");
+  const [message, setMessage] = useState<string | null>(null);
+  const [tracked, setTracked] = useState<string | null>(null);
+  const [confirmed, setConfirmed] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const lock = useRef(false);
+  const allowed = auth.authenticated && auth.roles.includes("worker");
+  const result = useAttemptStatus(allowed ? tracked : null, auth.subject, auth.token);
+  const owner = auth.subject ? `${process.env.NEXT_PUBLIC_KEYCLOAK_URL}|${process.env.NEXT_PUBLIC_KEYCLOAK_REALM || "prohodnaya"}|${auth.subject}` : null;
 
   useEffect(() => {
-    void bind(false);
-  }, [bind]);
-
-  async function submitCode(raw: string) {
-    const pass = decodePass(raw);
-    if (!pass) {
-      setScanOk(false);
-      setScanMessage("В тексте нет попытки и nonce. Скопируйте строку под QR.");
-      return;
-    }
-    setScanOk(null);
-    setScanMessage("Подписываем код…");
     try {
-      const key = await browserDeviceKey();
-      const signature = await signNonce(key.privateKey, pass.nonce);
-      const response = await apiRequest(`/attempts/${pass.attemptId}/scan`, "POST", session.token, {
-        nonce: pass.nonce,
-        signature,
-      });
-      if (response.offline) {
-        setScanOk(false);
-        setScanMessage(offlineReason);
-        return;
+      const text = location.hash.includes("attempt=") ? location.href : sessionStorage.getItem("prohodnaya-pending-qr");
+      if (text) {
+        const parsed = parseAttempt(text, location.origin);
+        setAttempt(parsed);
+        sessionStorage.setItem("prohodnaya-pending-qr", text);
+        history.replaceState(null, "", location.pathname + location.search);
       }
-      const confirmed = response.json?.confirmed === true;
-      setScanOk(confirmed);
-      setScanMessage(serverReason(response.json, "Сервер не подтвердил скан."));
-    } catch {
-      setScanOk(false);
-      setScanMessage("Не удалось подписать код ключом этого браузера.");
+    } catch (error) { setMessage(errorMessage(error)); sessionStorage.removeItem("prohodnaya-pending-qr"); }
+  }, []);
+
+  useEffect(() => {
+    let disposed = false;
+    setProof(null); setConfirmed(false); setTracked(null);
+    if (auth.subject) {
+      try { const saved = JSON.parse(sessionStorage.getItem("prohodnaya-confirmed-attempt") || "null"); if (saved?.sub === auth.subject && typeof saved.id === "string") { setTracked(saved.id); setConfirmed(true); } } catch { sessionStorage.removeItem("prohodnaya-confirmed-attempt"); }
     }
+    if (owner) storedProof(owner).then((value) => { if (!disposed) setProof(value); }).catch((error) => { if (!disposed) setMessage(errorMessage(error)); });
+    return () => { disposed = true; };
+  }, [owner]);
+
+  async function register() {
+    if (!allowed || !owner || lock.current) return;
+    lock.current = true; setBusy(true); setMessage(null);
+    try {
+      if (!crypto.subtle) throw new Error("Защищённый ключ недоступен. Откройте страницу по HTTPS.");
+      const key = (await storedProof(owner)) || await generateProof();
+      // Сохраняем до API: потеря ответа не должна потерять соответствующий приватный ключ.
+      await storedProof(owner, key);
+      setProof(key);
+      const result = await apiRequest<{ device_id: string; reason_human: string }>("/devices", await auth.token(), { public_key: key.publicKey, label: "Браузер рабочего" });
+      if (!result.device_id) throw new Error("Сервер не подтвердил привязку телефона.");
+      const registered = { ...key, registered: true };
+      await storedProof(owner, registered); setProof(registered); setMessage(result.reason_human);
+    } catch (error) { setMessage(errorMessage(error)); }
+    finally { lock.current = false; setBusy(false); }
   }
 
-  async function markZone(zone: string) {
-    setPendingZone(zone);
-    setZoneMessage(null);
-    const response = await apiRequest("/locations", "POST", session.token, {
-      source: "button",
-      zone_name: zone,
-    });
-    setPendingZone(null);
-    if (response.offline) {
-      setZoneMessage(offlineReason);
-      return;
-    }
-    setZoneMessage(serverReason(response.json, "Точку записать не удалось."));
+  function acceptQr(text: string): boolean {
+    try {
+      const parsed = parseAttempt(text.trim(), location.origin);
+      setAttempt(parsed); setConfirmed(false); setTracked(null); setMessage(null);
+      sessionStorage.removeItem("prohodnaya-confirmed-attempt");
+      sessionStorage.setItem("prohodnaya-pending-qr", text.trim());
+      setInput(""); return true;
+    } catch (error) { setMessage(errorMessage(error)); return false; }
   }
 
-  return (
-    <div className="grid gap-4">
-      <Panel title="Ключ телефона" aside={<span className="text-xs text-stone-500">{deviceOk ? "привязан" : "не привязан"}</span>}>
-        <p className="mb-3 text-sm text-stone-600">{deviceMessage}</p>
-        <p className="mb-3 text-xs break-all text-stone-500">
-          sub учётки для карточки в кадрах: {session.sub || "—"}
-        </p>
-        <button type="button" className="min-h-12 w-full rounded-xl border border-stone-300 px-4 font-semibold" onClick={() => void bind(true)} disabled={binding}>
-          {binding ? "Привязываем…" : "Привязать ключ ещё раз"}
-        </button>
-      </Panel>
-      <Panel title="Скан QR">
-        <QrScanner onCode={(value) => void submitCode(value)} />
-        {scanMessage ? (
-          <div className="mt-4">
-            <Notice tone={scanOk ? "ok" : scanOk === false ? "bad" : "wait"} title={scanOk ? "Телефон подтвердил" : scanOk === false ? "Скан не принят" : "Ждём сервер"}>
-              {scanMessage}
-            </Notice>
-          </div>
-        ) : null}
-      </Panel>
-      <Panel title="Симуляция зоны">
-        <p className="mb-3 text-sm text-stone-600">
-          Кнопки — симуляция, не GPS. Фоновую геолокацию не обещаем: точка уходит только по нажатию, пока эта страница открыта.
-        </p>
-        <div className="grid gap-2">
-          {ZONES.map((zone) => (
-            <button
-              key={zone}
-              type="button"
-              className="min-h-12 rounded-xl border border-stone-300 px-4 font-semibold"
-              onClick={() => void markZone(zone)}
-              disabled={pendingZone !== null}
-            >
-              {pendingZone === zone ? "Отправляем…" : `${zone} · симуляция`}
-            </button>
-          ))}
-        </div>
-        {zoneMessage ? <p className="mt-3 text-sm text-stone-700">{zoneMessage}</p> : null}
-      </Panel>
-    </div>
-  );
+  async function track(id: string) {
+    sessionStorage.removeItem("prohodnaya-pending-qr");
+    sessionStorage.setItem("prohodnaya-confirmed-attempt", JSON.stringify({ sub: auth.subject, id }));
+    setTracked(id); setConfirmed(true);
+  }
+
+  async function recover(id: string) {
+    try {
+      const saved = await apiRequest<{ status: string }>(`/attempts/${id}`, await auth.token());
+      if (["scanned", "decided"].includes(saved.status)) { await track(id); return true; }
+    } catch { /* Не выдаём предположение за подтверждение. */ }
+    return false;
+  }
+
+  async function confirm() {
+    if (!allowed || !owner || !attempt || !proof?.registered || lock.current || confirmed) return;
+    lock.current = true; setBusy(true); setMessage(null);
+    try {
+      const signature = await signNonce(proof.privateKey, attempt.nonce);
+      const result = await apiRequest<{ confirmed: boolean; reason_human?: string; reason: string }>(`/attempts/${attempt.attempt_id}/scan`, await auth.token(), { nonce: attempt.nonce, signature });
+      if (typeof result.confirmed !== "boolean") throw new Error("Сервер не вернул результат подтверждения.");
+      setConfirmed(result.confirmed); setMessage(result.reason_human || result.reason);
+      if (result.confirmed) await track(attempt.attempt_id);
+      else await recover(attempt.attempt_id);
+    } catch (error) { setMessage(errorMessage(error)); await recover(attempt.attempt_id); }
+    finally { lock.current = false; setBusy(false); }
+  }
+
+  return <ScreenShell role="phone" title="Мой проход" description="Сканируйте QR контролёра внутри страницы, затем подтвердите попытку.">
+    <section className="panel">
+      <div className="section-heading"><h2>Ключ телефона</h2><span className="badge">{proof?.registered ? "Сохранён в браузере" : "Не привязан"}</span></div>
+      <p className="muted">Привяжите этот браузер к своей учётной записи один раз. Повторная привязка отключит прежний ключ на сервере.</p>
+      <button className="button full-width" disabled={!allowed || busy} onClick={register}>{busy ? "Выполняется запрос…" : proof?.registered ? "Повторить привязку этого телефона" : "Привязать этот телефон"}</button>
+      <p className="hint">После очистки данных браузера потребуется новая привязка. Ключ другой учётной записи здесь не используется.</p>
+    </section>
+    <section className="panel">
+      <div className="section-heading"><h2>Подтверждение прохода</h2><span className="badge">{confirmed ? "Подтверждено" : attempt ? "QR получен" : "Ожидание QR"}</span></div>
+      <Status tone={attempt ? "waiting" : "neutral"} title={confirmed ? "Телефон подтвердил попытку" : attempt ? "Готово к подтверждению" : "Сканируйте QR контролёра"}>{confirmed ? "Теперь контролёр снимает лицо. Это ещё не разрешение прохода: решение принимает сервер." : "QR выбирает попытку, а ваш ключ подписывает её. При истёкшем коде попросите контролёра открыть новый."}</Status>
+      <button className="button full-width" disabled={!allowed || !proof?.registered || !attempt || busy || confirmed} onClick={confirm}>Подтвердить попытку</button>
+      <details className="manual-qr"><summary>Вставить ссылку из QR вручную</summary><label htmlFor="qr-link">Ссылка контролёра</label><input id="qr-link" type="text" autoComplete="off" value={input} onChange={(event) => setInput(event.target.value)} placeholder="https://…/phone#attempt=…" /><button className="button button-secondary" onClick={() => acceptQr(input)} disabled={!input.trim() || busy}>Прочитать ссылку</button></details>
+      {message && <p role="status" aria-live="polite" className="hint">{message}</p>}
+    </section>
+    <CameraPreview title="Сканер QR" description="Включите камеру и наведите её на код контролёра." onQr={!busy ? acceptQr : undefined} />
+    {result.decision && <section className="panel"><Status tone={result.decision.decision === "deny" ? "error" : "neutral"} title={result.decision.decision === "allow" ? "Проход разрешён сервером" : "Проход не разрешён"}>{result.decision.reason}</Status></section>}
+    {result.error && <p className="inline-error" role="alert">{result.error}</p>}
+    <WorkerMovement revision={result.decision ? `${tracked}:${result.decision.decision}` : null} />
+  </ScreenShell>;
 }

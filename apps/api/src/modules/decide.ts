@@ -12,6 +12,7 @@ type AttemptRow = {
   status: string;
   used: boolean;
   person_id: string | null;
+  gate_sub: string;
   stale: boolean;
 };
 
@@ -79,12 +80,12 @@ export async function decidePass(
     // не отменена, не использована, ttl жив. Обрыв websocket или wifi
     // статус не меняет — cancelled ставит только POST /cancel, пока клиент достучался.
     const locked = await client.query<AttemptRow>(
-      `SELECT id, direction, nonce, status, used, person_id, (expires_at <= now()) AS stale
+      `SELECT id, direction, nonce, status, used, person_id, gate_sub, (expires_at <= now()) AS stale
        FROM attempts WHERE id = $1 FOR UPDATE`,
       [input.attemptId],
     );
     const attempt = locked.rows[0];
-    if (!attempt) {
+    if (!attempt || attempt.gate_sub !== input.gateSub) {
       return { http: 404 as const, body: decisionBody("deny", TEXT.missing, "NO_SUCH_PERSON") };
     }
 

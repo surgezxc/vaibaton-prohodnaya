@@ -21,6 +21,32 @@ function ttlSeconds(): number {
 }
 
 export function registerAttempts(app: ApiApp, pool: pg.Pool): void {
+  app.get("/attempts/:id", requireRoles("gate", "worker"), async (c) => {
+    const id = c.req.param("id");
+    if (!isUuid(id)) return denyJson(c, 404, "Попытка не найдена.");
+    const user = c.get("user");
+    const { rows } = await pool.query<{
+      id: string; direction: string; status: string; expires_at: Date;
+      stale: boolean; decision: "allow" | "deny" | null; reason: string | null;
+    }>(
+      `SELECT a.id, a.direction, a.status, a.expires_at, a.decision, a.reason,
+              (a.expires_at <= now()) AS stale
+       FROM attempts a LEFT JOIN people p ON p.id = a.person_id
+       WHERE a.id = $1 AND (($2::boolean AND a.gate_sub = $4) OR ($3::boolean AND p.keycloak_sub = $4))`,
+      [id, user.roles.includes("gate"), user.roles.includes("worker"), user.sub],
+    );
+    const attempt = rows[0];
+    if (!attempt) return denyJson(c, 404, "Попытка не найдена.");
+    const expired = attempt.stale && ["pending", "scanned"].includes(attempt.status);
+    c.header("Cache-Control", "no-store");
+    return c.json({
+      attempt_id: attempt.id, direction: attempt.direction,
+      status: expired ? "expired" : attempt.status,
+      expires_at: attempt.expires_at.toISOString(), decision: attempt.decision,
+      reason_human: expired ? "QR устарел. Откройте новый код на планшете." : attempt.reason,
+    });
+  });
+
   app.post("/attempts", requireRoles("gate"), async (c) => {
     const body = await readJson(c);
     if (!body) return denyJson(c, 400, "Некорректный запрос.");
@@ -81,9 +107,9 @@ export function registerAttempts(app: ApiApp, pool: pg.Pool): void {
       const updated = await client.query<{ person_id: string | null; direction: string }>(
         `UPDATE attempts
          SET status = 'cancelled', used = true, reason = $2
-         WHERE id = $1 AND status IN ('pending', 'scanned')
+         WHERE id = $1 AND gate_sub = $3 AND status IN ('pending', 'scanned')
          RETURNING person_id, direction`,
-        [id, reason],
+        [id, reason, gateSub],
       );
       if (!updated.rowCount) return null;
       await writeJournal(client, {
@@ -98,7 +124,7 @@ export function registerAttempts(app: ApiApp, pool: pg.Pool): void {
       return true;
     });
     if (!cancelled) {
-      const exists = await pool.query("SELECT 1 FROM attempts WHERE id = $1", [id]);
+      const exists = await pool.query("SELECT 1 FROM attempts WHERE id = $1 AND gate_sub = $2", [id, gateSub]);
       if (!exists.rowCount) return denyJson(c, 404, "Попытка не найдена.");
       return denyJson(c, 409, "Попытка уже завершена.");
     }

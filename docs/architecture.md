@@ -125,6 +125,8 @@ flowchart TB
 - `POST /people` `PATCH /people/:id` — заведение, эталон; отказ если 0 или 2+ лиц  
 - `GET /people` — список и статус  
 - `POST /devices` — телефон регистрирует открытый ключ  
+- `GET /me` — worker читает своего человека и открытую смену по JWT sub; закрытая смена — null
+- `GET /attempts/:id` — статус и результат без nonce: только gate-владелец или подтвердивший worker
 - `POST /attempts` — контролёр открыл QR (вход/выход)  
 - `POST /attempts/:id/cancel` — закрыл экран, пока клиент ещё достучался до API. Обрыв связи сюда не приводит  
 - `POST /attempts/:id/scan` — телефон отсканировал QR и прислал подпись nonce. Нет ключа — «чужое устройство»  
@@ -136,6 +138,8 @@ flowchart TB
 - `GET /plans` `GET /plans/:id/calibration` `PUT /plans/:id/calibration` — три точки плана  
 - `POST /assistant/ask` `POST /assistant/summary` — через model-слой, числа подставляет сервер  
 - `GET /journal`
+
+Минимальные GET-методы реализованы 10.10.2026 по явному разрешению пользователя для интеграции `/gate` и `/phone`. DTO и права — [demtory-api-needs.md](demtory-api-needs.md). Телефон передаёт в `POST /locations` `shift_id`; API сверяет его с открытой сменой под блокировкой и отклоняет координаты старой смены. `cancel` и `decide` разрешены только gate-владельцу попытки.
 
 ## Каталоги в репо
 

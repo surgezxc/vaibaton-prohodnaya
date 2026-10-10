@@ -18,6 +18,7 @@ process.env.OLLAMA_BASE_URL = "http://127.0.0.1:9";
 
 const databaseUrl =
   process.env.DATABASE_URL ?? "postgres://prohodnaya:prohodnaya@127.0.0.1:5432/prohodnaya_test";
+if (!new URL(databaseUrl).pathname.endsWith("_test")) throw new Error("Тесты очищают таблицы: имя базы должно оканчиваться на _test.");
 process.env.DATABASE_URL = databaseUrl;
 
 const secret = new TextEncoder().encode(process.env.JWT_HMAC_SECRET);
@@ -217,6 +218,75 @@ describe("decide", () => {
     );
     assert.equal(journal.rowCount, 1);
     assert.equal(journal.rows[0].decision, "allow");
+  });
+
+  it("/me показывает только свою смену, вход и выход обновляют её", async () => {
+    const admin = await token("admin-sub", "admin");
+    const gate = await token("gate-sub", "gate");
+    const worker = await token("worker-a", "worker");
+    const other = await token("worker-b", "worker");
+    const personId = await enroll(admin, "worker-a", "Гаджиев Магомед Ибрагимович");
+    await enroll(admin, "worker-b", "Другой рабочий");
+    const device = await bind(worker);
+    assert.equal((await api("/me", "GET", gate)).status, 403);
+    assert.equal((await api("/me", "GET", await token("unknown", "worker"))).status, 422);
+    const closed = await api("/me?person_id=foreign", "GET", worker);
+    assert.deepEqual(closed.json.person, { id: personId, full_name: "Гаджиев Магомед Ибрагимович" });
+    assert.equal(closed.json.shift, null);
+    const entrance = await openAttempt(gate, "in");
+    await scan(worker, entrance.attempt_id, entrance.nonce, device);
+    await api(`/attempts/${entrance.attempt_id}/decide`, "POST", gate, { nonce: entrance.nonce, image_base64: "aW1hZ2U=" });
+    const own = await api("/me", "GET", worker);
+    const shift = own.json.shift as { shift_id: string };
+    assert.ok(shift.shift_id);
+    assert.equal((await api("/me", "GET", other)).json.shift, null);
+    const location = { shift_id: shift.shift_id, source: "button", zone_name: "Бетон" };
+    assert.equal((await api("/locations", "POST", worker, location)).status, 201);
+    const exit = await openAttempt(gate, "out");
+    await scan(worker, exit.attempt_id, exit.nonce, device);
+    await api(`/attempts/${exit.attempt_id}/decide`, "POST", gate, { nonce: exit.nonce, image_base64: "aW1hZ2U=" });
+    assert.equal((await api("/me", "GET", worker)).json.shift, null);
+    assert.equal((await api("/locations", "POST", worker, location)).status, 422);
+    const again = await openAttempt(gate, "in");
+    await scan(worker, again.attempt_id, again.nonce, device);
+    await api(`/attempts/${again.attempt_id}/decide`, "POST", gate, { nonce: again.nonce, image_base64: "aW1hZ2U=" });
+    const stale = await api("/locations", "POST", worker, location);
+    assert.equal(stale.status, 422);
+    assert.match(String(stale.json.reason), /Смена изменилась/);
+    assert.equal((await pool.query("SELECT count(*)::int AS n FROM locations")).rows[0].n, 1);
+  });
+
+  it("статус попытки закрыт для посторонних, nonce не выдаётся; чужой gate не отменяет и не решает", async () => {
+    const admin = await token("admin-sub", "admin");
+    const gate = await token("gate-sub", "gate");
+    const foreignGate = await token("gate-other", "gate");
+    const worker = await token("worker-a", "worker");
+    const foreignWorker = await token("worker-b", "worker");
+    await enroll(admin, "worker-a", "Гаджиев Магомед Ибрагимович");
+    const device = await bind(worker);
+    const attempt = await openAttempt(gate, "in");
+    const path = `/attempts/${attempt.attempt_id}`;
+    assert.equal((await api(path, "GET", worker)).status, 404);
+    assert.equal((await api(path, "GET", foreignGate)).status, 404);
+    assert.equal((await api(path, "GET", admin)).status, 403);
+    assert.equal((await api(`${path}/cancel`, "POST", foreignGate, {})).status, 404);
+    assert.equal((await api(`${path}/decide`, "POST", foreignGate, { nonce: attempt.nonce, image_base64: "aW1hZ2U=" })).status, 404);
+    const pending = await api(path, "GET", gate);
+    assert.equal(pending.json.status, "pending");
+    assert.equal(pending.json.nonce, undefined);
+    await scan(worker, attempt.attempt_id, attempt.nonce, device);
+    assert.equal((await api(path, "GET", worker)).json.status, "scanned");
+    assert.equal((await api(path, "GET", foreignWorker)).status, 404);
+    await api(`${path}/decide`, "POST", gate, { nonce: attempt.nonce, image_base64: "aW1hZ2U=" });
+    const decided = await api(path, "GET", worker);
+    assert.equal(decided.json.decision, "allow");
+    assert.match(String(decided.json.reason_human), /Смена открыта/);
+    const stale = await openAttempt(gate, "out");
+    await pool.query("UPDATE attempts SET expires_at = now() - interval '1 second' WHERE id = $1", [stale.attempt_id]);
+    assert.equal((await api(`/attempts/${stale.attempt_id}`, "GET", gate)).json.status, "expired");
+    const cancel = await openAttempt(gate, "out");
+    await api(`/attempts/${cancel.attempt_id}/cancel`, "POST", gate, {});
+    assert.equal((await api(`/attempts/${cancel.attempt_id}`, "GET", gate)).json.status, "cancelled");
   });
 
   it("повторный decide не открывает вторую смену", async () => {

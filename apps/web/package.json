@@ -3,27 +3,33 @@
   "version": "0.1.0",
   "private": true,
   "engines": {
-    "node": ">=22"
+    "node": ">=22.18"
   },
   "scripts": {
     "dev": "next dev --hostname 0.0.0.0 --port 43123",
     "build": "next build",
     "start": "next start --hostname 0.0.0.0 --port 43123",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "node --test test/*.test.mjs",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@tailwindcss/postcss": "^4.3.3",
     "next": "16.4.0",
-    "qrcode": "^1.5.4",
+    "qrcode": "1.5.4",
     "react": "19.3.0",
     "react-dom": "19.3.0",
-    "tailwindcss": "^4.3.3"
+    "tailwindcss": "^4.3.3",
+    "jsqr": "1.4.0",
+    "keycloak-js": "26.2.4"
   },
   "devDependencies": {
     "@types/node": "26.6.5",
-    "@types/qrcode": "^1.5.6",
+    "@types/qrcode": "1.5.6",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
-    "typescript": "7.0.2"
-  }
+    "typescript": "7.0.2",
+    "@playwright/test": "1.64.0"
+  },
+  "type": "module"
 }

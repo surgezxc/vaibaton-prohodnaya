@@ -1,280 +1,158 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { FrameCamera, type FrameCameraHandle } from "@/components/frame-camera";
-import { LoginCard } from "@/components/login-card";
-import { Notice, Panel, RoleWarning, Shell } from "@/components/shell";
-import { useSession } from "@/components/use-session";
-import { apiRequest, offlineReason, serverReason } from "@/lib/api";
-import { apiBase } from "@/lib/config";
-import { encodePass } from "@/lib/pass-code";
-import { loadSession } from "@/lib/session";
-
-type Direction = "in" | "out";
-
-type OpenAttempt = {
-  id: string;
-  nonce: string;
-  expiresAt: string;
-  direction: Direction;
-  done: boolean;
-};
+import QRCode from "qrcode";
+import { useAttemptStatus } from "@/hooks/use-attempt-status";
+import { imageFileToFrame } from "@/lib/image-frame";
+import { CameraPreview } from "@/components/camera-preview";
+import { ScreenShell, Status } from "@/components/screen-shell";
+import { useAuth } from "@/components/auth-provider";
+import { apiRequest, errorMessage, type Attempt, type Decision } from "@/lib/pass-api";
 
 export default function GatePage() {
-  const { session, login, logout } = useSession();
-  return (
-    <Shell current="/gate" session={session} onLogout={logout}>
-      <p className="text-xs font-bold tracking-widest text-emerald-900 uppercase">Планшет проходной</p>
-      <h1 className="mt-2 text-3xl font-semibold tracking-tight">Контроль прохода</h1>
-      <p className="mt-2 mb-5 max-w-2xl text-stone-600">
-        Выберите вход или выход, откройте QR и снимите один кадр. Телефон рабочего должен успеть прочитать код.
-      </p>
-      {session ? (
-        <>
-          <RoleWarning session={session} role="gate" label="контролёр" />
-          <GateDesk token={session.token} />
-        </>
-      ) : (
-        <LoginCard username="gate" onSuccess={login} />
-      )}
-    </Shell>
-  );
-}
-
-function GateDesk({ token }: { token: string }) {
-  const cameraRef = useRef<FrameCameraHandle>(null);
-  const openRef = useRef<OpenAttempt | null>(null);
-  const [direction, setDirection] = useState<Direction>("in");
-  const [attempt, setAttempt] = useState<OpenAttempt | null>(null);
-  const [qrUrl, setQrUrl] = useState<string | null>(null);
-  const [busy, setBusy] = useState<"open" | "decide" | "cancel" | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [note, setNote] = useState<string | null>(null);
-  const [result, setResult] = useState<{ decision: string; reason: string } | null>(null);
-  const [now, setNow] = useState(() => Date.now());
+  const auth = useAuth();
+  const [direction, setDirection] = useState<"in" | "out">("in");
+  const [attempt, setAttempt] = useState<Attempt | null>(null);
+  const [qr, setQr] = useState<string | null>(null);
+  const [frame, setFrame] = useState<string | null>(null);
+  const [decision, setDecision] = useState<Decision | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const [uncertain, setUncertain] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [now, setNow] = useState(0);
+  const active = useRef<Attempt | null>(null);
+  const operation = useRef(0);
+  const lock = useRef(false);
+  const token = useRef(auth.token);
+  token.current = auth.token;
+  const allowed = auth.authenticated && auth.roles.includes("gate");
+  const expired = attempt ? now >= Date.parse(attempt.expires_at) : false;
+  const journal = useAttemptStatus(allowed ? attempt?.attempt_id || null : null, auth.subject, auth.token);
+  const phoneConfirmed = journal.confirmed && journal.fresh;
+  const canCapture = allowed && phoneConfirmed && Boolean(attempt) && !expired && !decision && !busy && !uncertain;
 
   useEffect(() => {
-    openRef.current = attempt;
-  }, [attempt]);
+    if (!journal.decision || (decision?.decision === journal.decision.decision && (decision.reason_human || decision.reason) === journal.decision.reason)) return;
+    setUncertain(false); setDecision(journal.decision); setFrame(null); setQr(null); active.current = null;
+  }, [journal.decision, decision]);
 
   useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(timer);
-  }, []);
-
-  const life = useRef(0);
-  useEffect(() => {
-    const marker = ++life.current;
-    const onHide = () => {
-      const current = openRef.current;
-      const bearer = loadSession()?.token;
-      if (!current || current.done || !bearer) return;
-      current.done = true;
-      void fetch(`${apiBase()}/attempts/${current.id}/cancel`, {
-        method: "POST",
-        headers: { authorization: `Bearer ${bearer}` },
-        keepalive: true,
-      }).catch(() => undefined);
-    };
-    window.addEventListener("pagehide", onHide);
-    return () => {
-      window.removeEventListener("pagehide", onHide);
-      const snapshot = openRef.current;
-      const bearer = loadSession()?.token;
-      window.setTimeout(() => {
-        if (life.current !== marker) return;
-        if (!snapshot || snapshot.done || !bearer || openRef.current !== snapshot) return;
-        snapshot.done = true;
-        void fetch(`${apiBase()}/attempts/${snapshot.id}/cancel`, {
-          method: "POST",
-          headers: { authorization: `Bearer ${bearer}` },
-          keepalive: true,
-        }).catch(() => undefined);
-      }, 0);
-    };
-  }, []);
+    if (!attempt || decision) return;
+    setNow(Date.now());
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [attempt, decision]);
 
   useEffect(() => {
-    if (!attempt || attempt.done) {
-      setQrUrl(null);
-      return;
+    function abandon() {
+      operation.current += 1;
+      const old = active.current;
+      active.current = null;
+      if (old) void token.current().then((t) => apiRequest(`/attempts/${old.attempt_id}/cancel`, t, {}, true)).catch(() => {});
+      return old;
     }
-    let cancelled = false;
-    const payload = encodePass(attempt.id, attempt.nonce);
-    void import("qrcode").then(async (QRCode) => {
-      const url = await QRCode.toDataURL(payload, { width: 320, margin: 2, errorCorrectionLevel: "M" });
-      if (!cancelled) setQrUrl(url);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [attempt]);
+    function hide() {
+      if (!document.hidden) return;
+      const old = abandon();
+      setAttempt(null); setQr(null); setFrame(null); setBusy(false); lock.current = false;
+      if (old) setMessage("QR скрыт. Отмена отправлена по возможности; при потере связи попытка живёт до серверного срока.");
+    }
+    document.addEventListener("visibilitychange", hide);
+    return () => { document.removeEventListener("visibilitychange", hide); abandon(); };
+  }, []);
 
   async function openAttempt() {
-    setBusy("open");
-    setError(null);
-    setNote(null);
-    setResult(null);
-    const response = await apiRequest("/attempts", "POST", token, { direction });
-    setBusy(null);
-    if (response.offline) {
-      setError(offlineReason);
-      return;
-    }
-    if (response.status !== 201 || !response.json) {
-      setError(serverReason(response.json, "Попытку открыть не удалось."));
-      return;
-    }
-    const id = response.json.attempt_id;
-    const nonce = response.json.nonce;
-    const expiresAt = response.json.expires_at;
-    if (typeof id !== "string" || typeof nonce !== "string" || typeof expiresAt !== "string") {
-      setError(serverReason(response.json, "Сервер открыл попытку без кода."));
-      return;
-    }
-    const next = { id, nonce, expiresAt, direction, done: false };
-    openRef.current = next;
-    setAttempt(next);
+    if (lock.current || !allowed) return;
+    lock.current = true; setBusy(true); setUncertain(false); setMessage(null); setDecision(null); setFrame(null); setQr(null);
+    const version = ++operation.current;
+    try {
+      const accessToken = await auth.token();
+      const old = active.current;
+      if (old) await apiRequest(`/attempts/${old.attempt_id}/cancel`, accessToken, {});
+      active.current = null; setAttempt(null);
+      const created = await apiRequest<Attempt>("/attempts", accessToken, { direction });
+      if (version !== operation.current) {
+        await apiRequest(`/attempts/${created.attempt_id}/cancel`, accessToken, {}, true);
+        return;
+      }
+      if (!created.attempt_id || !created.nonce || !Number.isFinite(Date.parse(created.expires_at))) throw new Error("Сервер вернул некорректную попытку.");
+      active.current = created; setAttempt(created); setNow(Date.now());
+      const url = new URL("/phone", location.origin);
+      url.hash = new URLSearchParams({ attempt: created.attempt_id, nonce: created.nonce }).toString();
+      const image = await QRCode.toDataURL(url.toString(), { width: 280, margin: 4, errorCorrectionLevel: "M" });
+      if (version === operation.current) setQr(image);
+    } catch (error) { if (version === operation.current) setMessage(errorMessage(error)); }
+    finally { if (version === operation.current) { lock.current = false; setBusy(false); } }
   }
 
   async function closeAttempt() {
-    const current = openRef.current;
-    if (!current || current.done) {
-      setAttempt(null);
-      return;
-    }
-    setBusy("cancel");
-    setError(null);
-    const response = await apiRequest(`/attempts/${current.id}/cancel`, "POST", token);
-    setBusy(null);
-    if (response.offline) {
-      setError("API недоступен. Код на сервере не отменён.");
-      return;
-    }
-    if (response.status === 401 || response.status === 403) {
-      setError(serverReason(response.json, "Закрыть попытку не удалось."));
-      return;
-    }
-    current.done = true;
-    setAttempt({ ...current, done: true });
-    setNote(serverReason(response.json, "Попытка закрыта."));
+    if (lock.current) return;
+    const old = active.current;
+    ++operation.current;
+    active.current = null; setAttempt(null); setQr(null); setFrame(null); setDecision(null);
+    if (!old) return;
+    lock.current = true; setBusy(true);
+    try {
+      await apiRequest(`/attempts/${old.attempt_id}/cancel`, await auth.token(), {});
+      setMessage("Попытка отменена сервером.");
+    } catch (error) { setMessage(`${errorMessage(error)} QR скрыт; при потере связи сервер ограничивает попытку её сроком.`); }
+    finally { lock.current = false; setBusy(false); }
   }
 
   async function decide() {
-    const current = openRef.current;
-    if (!current || current.done) return;
-    const image = cameraRef.current?.snapshot();
-    if (!image) {
-      setError("Нет кадра с проходной. Включите камеру и дождитесь изображения.");
-      return;
-    }
-    setBusy("decide");
-    setError(null);
-    const response = await apiRequest(`/attempts/${current.id}/decide`, "POST", token, {
-      nonce: current.nonce,
-      image_base64: image,
-    });
-    setBusy(null);
-    if (response.offline) {
-      setError(offlineReason);
-      return;
-    }
-    if (response.status === 401 || response.status === 403) {
-      setError(serverReason(response.json, "Сервер не принял кадр."));
-      return;
-    }
-    current.done = true;
-    const reason = serverReason(response.json, "Сервер не прислал причину.");
-    const decision = typeof response.json?.decision === "string" ? response.json.decision : "";
-    setResult({ decision, reason });
-    setAttempt({ ...current });
+    if (!attempt || !frame || expired || lock.current || !allowed || !phoneConfirmed || uncertain) return;
+    lock.current = true; setBusy(true); setMessage(null);
+    const version = operation.current;
+    try {
+      const result = await apiRequest<Decision>(`/attempts/${attempt.attempt_id}/decide`, await auth.token(), { nonce: attempt.nonce, image_base64: frame });
+      if (version !== operation.current) return;
+      if (result.decision !== "allow" && result.decision !== "deny") throw new Error("Результат проверки неизвестен. Обратитесь к контролёру.");
+      setDecision(result); setFrame(null); setQr(null);
+      active.current = null;
+    } catch (error) { if (version === operation.current) { setUncertain(true); setFrame(null); setMessage(`${errorMessage(error)} Читаем итог с сервера; повторная отправка заблокирована.`); } }
+    finally { if (version === operation.current) { lock.current = false; setBusy(false); } }
   }
 
-  const secondsLeft = attempt
-    ? Math.max(0, Math.ceil((new Date(attempt.expiresAt).getTime() - now) / 1000))
-    : 0;
-  const payload = attempt ? encodePass(attempt.id, attempt.nonce) : "";
-
-  return (
-    <div className="grid gap-4 lg:grid-cols-2">
-      <Panel title="Попытка" aside={<span className="text-sm text-stone-500">{attempt && !attempt.done ? "код открыт" : "кода нет"}</span>}>
-        <fieldset className="mb-4 flex flex-wrap gap-2 border-0 p-0" disabled={Boolean(attempt && !attempt.done)}>
-          <legend className="mb-2 text-sm text-stone-600">Направление</legend>
-          <DirectionChoice value="in" current={direction} onPick={setDirection} label="Вход" />
-          <DirectionChoice value="out" current={direction} onPick={setDirection} label="Выход" />
+  return <ScreenShell role="gate" title="Контроль прохода" description="Выберите направление и откройте попытку для рабочего.">
+    {decision && <section className="gate-outcome"><Status tone={decision.decision === "deny" ? "error" : "neutral"} title={decision.decision === "allow" ? "Проход разрешён сервером" : "Проход не разрешён"}>{decision.reason_human || decision.reason}</Status></section>}
+    <div className="gate-grid">
+      <section className="panel">
+        <div className="section-heading"><h2>Попытка прохода</h2><span className="badge">{busy ? "Запрос…" : "Серверный QR"}</span></div>
+        <fieldset className="direction-picker" disabled={busy || Boolean(attempt && !decision && !expired)}>
+          <legend>Направление</legend>
+          <label><input type="radio" name="direction" checked={direction === "in"} onChange={() => setDirection("in")} /><span>Вход на объект</span></label>
+          <label><input type="radio" name="direction" checked={direction === "out"} onChange={() => setDirection("out")} /><span>Выход с объекта</span></label>
         </fieldset>
-        <div className="mb-4 grid min-h-72 place-items-center rounded-xl border border-dashed border-stone-300 bg-stone-50 p-4 text-center">
-          {qrUrl && attempt && !attempt.done ? (
-            <div>
-              <img src={qrUrl} alt="QR попытки прохода" width={320} height={320} className="mx-auto h-auto w-full max-w-80" />
-              <p className="mt-2 text-sm font-semibold">{attempt.direction === "in" ? "Вход" : "Выход"} · ещё {secondsLeft} с</p>
-              <p className="mt-1 text-xs break-all text-stone-500">{payload}</p>
-            </div>
-          ) : (
-            <p className="max-w-xs text-sm text-stone-600">Попытка не открыта. QR появится после ответа сервера — телефон должен прочитать именно его.</p>
-          )}
+        <div className="qr-stage">
+          {qr && !expired && !decision ? <img className="qr-image" src={qr} alt="Одноразовый QR для телефона рабочего" width={280} height={280} /> : <span className="qr-outline" aria-hidden="true">QR</span>}
+          <strong>{expired && !decision ? "Срок QR истёк" : qr && !decision ? "Рабочий сканирует этот QR" : "Откройте попытку"}</strong>
+          {attempt && !decision && !expired && <p>Осталось {Math.max(0, Math.ceil((Date.parse(attempt.expires_at) - now) / 1000))} с. Направление: {attempt.direction === "in" ? "вход" : "выход"}.</p>}
         </div>
-        <div className="flex flex-wrap gap-2">
-          <button type="button" className="min-h-12 flex-1 rounded-xl bg-emerald-900 px-4 font-semibold text-white" onClick={() => void openAttempt()} disabled={busy !== null}>
-            {busy === "open" ? "Открываем…" : attempt && !attempt.done ? "Открыть новый QR" : "Открыть QR"}
-          </button>
-          {attempt && !attempt.done ? (
-            <button type="button" className="min-h-12 rounded-xl border border-stone-300 px-4 font-semibold" onClick={() => void closeAttempt()} disabled={busy !== null}>
-              {busy === "cancel" ? "Закрываем…" : "Закрыть экран"}
-            </button>
-          ) : null}
+        <div className="button-row">
+          <button className="button" disabled={!allowed || busy} onClick={openAttempt}>{attempt ? "Открыть новый QR" : "Открыть QR"}</button>
+          {attempt && <button className="button button-secondary" disabled={busy} onClick={closeAttempt}>Закрыть QR</button>}
         </div>
-        <p className="mt-3 text-xs text-stone-500">Закрытие экрана отменяет код, только если API ещё отвечает. Обрыв сети попытку не гасит.</p>
-      </Panel>
-      <div className="grid gap-4">
-        <FrameCamera ref={cameraRef} title="Камера КПП" />
-        <Panel title="Решение сервера">
-          {result ? (
-            <Notice tone={result.decision === "allow" ? "ok" : "bad"} title={result.decision === "allow" ? "Проход разрешён" : "Проход не разрешён"}>
-              {result.reason}
-            </Notice>
-          ) : attempt && !attempt.done ? (
-            <Notice tone="wait" title="Ждём телефон и кадр">
-              Рабочий сканирует QR. Затем снимите лицо здесь.
-            </Notice>
-          ) : (
-            <Notice title="Нет активной попытки">Откройте QR, чтобы сервер выдал одноразовый код.</Notice>
-          )}
-          {note ? <div className="mt-3"><Notice title="Код закрыт">{note}</Notice></div> : null}
-          {error ? (
-            <p className="mt-3 text-sm text-red-800" role="alert">
-              {error}
-            </p>
-          ) : null}
-          <button
-            type="button"
-            className="mt-4 min-h-12 w-full rounded-xl bg-emerald-900 px-4 font-semibold text-white"
-            onClick={() => void decide()}
-            disabled={!attempt || attempt.done || busy !== null}
-          >
-            {busy === "decide" ? "Отправляем кадр…" : "Снять и решить"}
-          </button>
-        </Panel>
-      </div>
+        <p className="hint">Закрытие отменяет попытку через API. При недоступной сети действует срок сервера.</p>
+      </section>
+      <CameraPreview enabled={canCapture} key={attempt?.attempt_id || "idle"} title="Камера КПП" description="После подтверждения рабочего снимите лицо и отправьте кадр на проверку." onCapture={canCapture ? setFrame : undefined} />
     </div>
-  );
-}
-
-function DirectionChoice({
-  value,
-  current,
-  onPick,
-  label,
-}: {
-  value: Direction;
-  current: Direction;
-  onPick: (value: Direction) => void;
-  label: string;
-}) {
-  return (
-    <label className={`min-h-12 flex-1 cursor-pointer rounded-xl border px-3 py-3 ${current === value ? "border-emerald-800 bg-emerald-50" : "border-stone-200"}`}>
-      <input className="mr-2" type="radio" name="direction" checked={current === value} onChange={() => onPick(value)} />
-      {label}
-    </label>
-  );
+    <section className="panel result-panel">
+      <label className="file-label">Загрузить кадр JPEG / PNG
+        <input className="file-input" aria-label="Загрузить кадр JPEG / PNG" type="file" accept="image/jpeg,image/png" disabled={!canCapture} onChange={async (event) => {
+          const file = event.currentTarget.files?.[0]; event.currentTarget.value = "";
+          if (!file) return;
+          const version = operation.current;
+          try { const loaded = await imageFileToFrame(file); if (version === operation.current && active.current?.attempt_id === attempt?.attempt_id && Date.now() < Date.parse(attempt?.expires_at || "") && !document.hidden) setFrame(loaded); }
+          catch (error) { if (version === operation.current) setMessage(errorMessage(error)); }
+        }} />
+      </label>
+      <p className="hint">Для проверки материалов пакета или ошибки камеры. Фото не заменяет проверку живого лица на сервере.</p>
+      <div className="section-heading"><h2>Проверка сервером</h2><span className="badge">{frame ? "Кадр готов" : "Нет кадра"}</span></div>
+      {frame && <img className="captured-frame" src={frame} alt="Кадр текущей попытки перед отправкой" />}
+      {!decision && <Status tone={attempt ? "waiting" : "neutral"} title={uncertain ? "Результат пока неизвестен" : busy ? "Выполняется запрос" : phoneConfirmed ? "Телефон подтвердил попытку" : attempt ? "Подтверждение рабочего ожидается" : "Нет активной попытки"}>Подтверждение читается с сервера. Кадр доступен после подтверждения; решение принимает сервер.</Status>}
+      {journal.error && <p className="inline-error" role="alert">{journal.error} Подтверждение временно недоступно.</p>}
+      {message && <p className="inline-error" role="alert">{message}</p>}
+      <button className="button capture-button" disabled={!canCapture || !frame} onClick={decide}>Отправить кадр на проверку</button>
+    </section>
+  </ScreenShell>;
 }
