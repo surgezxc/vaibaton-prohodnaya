@@ -82,10 +82,13 @@ async function login(page: Page, path: string) {
 
 test('планшет ждёт подпись; загрузка кадра и отказ сервера; закрытие отменяет QR', async ({ context, page }) => {
   const s = state(); await setup(context, 'gate', s); await login(page, '/gate');
+  await expect(page.getByRole('button', { name: 'Включить камеру', exact: true })).toBeEnabled();
   await page.getByRole('button', { name: 'Открыть QR', exact: true }).click();
   await expect(page.getByAltText('Одноразовый QR для телефона рабочего')).toBeVisible();
   const file = page.locator('input[type=file]');
   await expect(file).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Включить камеру', exact: true })).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Снять кадр', exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Отправить кадр на проверку' })).toBeDisabled();
   s.confirmed = true;
   await expect(file).toBeEnabled();
@@ -185,7 +188,49 @@ test('камера распознаёт QR из видеопотока и вык
   await login(page, '/phone');
   await page.getByRole('button', { name: 'Включить камеру' }).click();
   await expect(page.getByText('QR получен', { exact: true })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Подтверждение прохода' })).toBeFocused();
+  await expect(page.getByText('Сначала нажмите «Привязать этот телефон» выше.', { exact: false })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Подтвердить попытку' })).toBeDisabled();
+  expect(s.scans).toBe(0);
   await expect(page.getByRole('button', { name: 'Включить камеру' })).toBeVisible();
+  expect(await page.evaluate(() => (window as unknown as { cameraStopped: boolean }).cameraStopped)).toBe(true);
+});
+
+test('ошибка отсутствующего рабочего видна рядом с привязкой, QR не подтверждается', async ({ context, page }) => {
+  const s = state(); await setup(context, 'worker', s);
+  await context.route('**/devices', route => json(route, { reason_human: 'Учётка не связана с человеком. Обратитесь к администратору.' }, 422));
+  await login(page, '/phone');
+  await page.getByRole('button', { name: 'Привязать этот телефон' }).click();
+  const registration = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Ключ телефона' }) });
+  await expect(registration.getByText('Учётка не связана с человеком.', { exact: false })).toBeVisible();
+  await page.locator('summary').click(); await page.locator('#qr-link').fill(qr);
+  await page.getByRole('button', { name: 'Прочитать ссылку' }).click();
+  await expect(page.getByRole('button', { name: 'Подтвердить попытку' })).toBeDisabled();
+  expect(s.scans).toBe(0);
+});
+
+test('предпросмотр КПП не разрешает снимок без подписи и останавливается при истечении QR', async ({ context, page }) => {
+  const s = state(); await setup(context, 'gate', s);
+  await context.addInitScript(() => {
+    Object.defineProperty(navigator.mediaDevices, 'getUserMedia', { value: async () => {
+      const canvas = document.createElement('canvas'); canvas.width = 640; canvas.height = 480;
+      const ctx = canvas.getContext('2d')!;
+      const stream = canvas.captureStream(4);
+      const timer = setInterval(() => ctx.fillRect(0, 0, 640, 480), 100);
+      const track = stream.getVideoTracks()[0], stop = track.stop.bind(track);
+      track.stop = () => { (window as unknown as { cameraStopped: boolean }).cameraStopped = true; clearInterval(timer); stop(); };
+      return stream;
+    } });
+  });
+  await page.clock.install(); await login(page, '/gate');
+  await page.getByRole('button', { name: 'Открыть QR', exact: true }).click();
+  await page.getByRole('button', { name: 'Включить камеру', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Выключить камеру' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Снять кадр', exact: true })).toHaveCount(0);
+  await expect(page.locator('input[type=file]')).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Отправить кадр на проверку' })).toBeDisabled();
+  await page.clock.fastForward(26000);
+  await expect(page.getByRole('button', { name: 'Включить камеру', exact: true })).toBeDisabled();
   expect(await page.evaluate(() => (window as unknown as { cameraStopped: boolean }).cameraStopped)).toBe(true);
 });
 

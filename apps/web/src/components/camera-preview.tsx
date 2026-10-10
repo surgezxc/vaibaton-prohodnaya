@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { decodeQr } from "@/lib/qr-reader";
 
-export function CameraPreview({ title, description, onCapture, onQr, enabled = true }: { title: string; description: string; onCapture?: (frame: string) => void; onQr?: (text: string) => boolean; enabled?: boolean }) {
+export function CameraPreview({ title, description, onCapture, onQr, enabled = true, disabledReason }: { title: string; description: string; onCapture?: (frame: string) => void; onQr?: (text: string) => boolean; enabled?: boolean; disabledReason?: string }) {
   const video = useRef<HTMLVideoElement>(null);
   const stream = useRef<MediaStream | null>(null);
   const request = useRef(0);
@@ -116,6 +116,7 @@ export function CameraPreview({ title, description, onCapture, onQr, enabled = t
       {!active && <div className="camera-placeholder"><span aria-hidden="true">◎</span><p>Камера включается только по кнопке</p></div>}
     </div>
     {error && <p className="inline-error" role="alert">{error}</p>}
+    {!enabled && disabledReason && <p className="hint" role="status">{disabledReason}</p>}
     <button className="button button-secondary" disabled={!enabled} onClick={active || loading ? stop : start}>{loading ? "Отменить включение" : active ? "Выключить камеру" : "Включить камеру"}</button>
     {onCapture && <button className="button capture-button" disabled={!active} onClick={capture}>Снять кадр</button>}
     <p className="hint">{onQr ? "Наведите камеру на QR контролёра. После распознавания камера выключится." : onCapture ? "Кадр хранится только до завершения текущей попытки. Отправка — отдельной кнопкой." : "Только предпросмотр. Изображение не отправляется и не сохраняется."}</p>

@@ -28,6 +28,12 @@ export default function GatePage() {
   const journal = useAttemptStatus(allowed ? attempt?.attempt_id || null : null, auth.subject, auth.token);
   const phoneConfirmed = journal.confirmed && journal.fresh;
   const canCapture = allowed && phoneConfirmed && Boolean(attempt) && !expired && !decision && !busy && !uncertain;
+  const canPreview = allowed && !expired && !decision && !busy && !uncertain;
+  const cameraDisabledReason = !allowed ? "Войдите в учётную запись контролёра, чтобы включить камеру."
+    : expired ? "Срок попытки истёк. Откройте новый QR."
+      : uncertain ? "Дождитесь серверного результата предыдущей попытки."
+        : decision ? "Попытка завершена. Для следующего рабочего откройте новый QR."
+          : "Дождитесь завершения запроса.";
 
   useEffect(() => {
     if (!journal.decision || (decision?.decision === journal.decision.decision && (decision.reason_human || decision.reason) === journal.decision.reason)) return;
@@ -114,7 +120,7 @@ export default function GatePage() {
         </div>
         <p className="hint">Скрытие вкладки попытку не отменяет. Отмена только кнопкой «Закрыть QR». Если сеть пропала, попытка живёт до серверного срока.</p>
       </section>
-      <CameraPreview enabled={canCapture} key={attempt?.attempt_id || "idle"} title="Камера КПП" description="После подтверждения рабочего снимите лицо и отправьте кадр на проверку." onCapture={canCapture ? setFrame : undefined} />
+      <CameraPreview enabled={canPreview} disabledReason={cameraDisabledReason} key={attempt?.attempt_id || "idle"} title="Камера КПП" description={canCapture ? "Телефон подтвердил попытку. Нажмите «Включить камеру», затем «Снять кадр» и отправьте его на проверку." : "Предпросмотр можно включить заранее, чтобы разрешить доступ к камере. Кнопка «Снять кадр» появится после подтверждения QR рабочим на телефоне."} onCapture={canCapture ? setFrame : undefined} />
     </div>
     <section className="panel result-panel">
       <label className="file-label">Загрузить кадр JPEG / PNG

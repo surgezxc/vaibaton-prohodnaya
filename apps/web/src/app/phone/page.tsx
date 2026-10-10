@@ -17,6 +17,8 @@ export default function PhonePage() {
   const [input, setInput] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [refusal, setRefusal] = useState<string | null>(null);
+  const [registrationMessage, setRegistrationMessage] = useState<string | null>(null);
+  const confirmationPanel = useRef<HTMLElement>(null);
   const [tracked, setTracked] = useState<string | null>(null);
   const [confirmed, setConfirmed] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -24,6 +26,19 @@ export default function PhonePage() {
   const allowed = auth.authenticated && auth.roles.includes("worker");
   const result = useAttemptStatus(allowed ? tracked : null, auth.subject, auth.token);
   const owner = auth.subject ? `${keycloakBase()}|${process.env.NEXT_PUBLIC_KEYCLOAK_REALM || "prohodnaya"}|${auth.subject}` : null;
+  const nextStep = !auth.ready ? "Дождитесь подключения входа."
+    : !auth.authenticated ? "Сначала войдите через Keycloak в учётную запись рабочего, затем откройте свежий QR."
+      : !allowed ? "Для подтверждения нужна учётная запись рабочего."
+        : !proof?.registered ? "Сначала нажмите «Привязать этот телефон» выше. После успешной привязки попросите контролёра открыть свежий QR."
+          : confirmed ? "Телефон подтвердил попытку. Теперь на ноутбуке снимите лицо и отправьте кадр на проверку."
+            : attempt ? "QR считан. Нажмите «Подтвердить попытку» ниже — без этого камера КПП не сможет снять кадр."
+              : "Включите сканер, затем попросите контролёра открыть QR.";
+
+  useEffect(() => {
+    if (!attempt) return;
+    confirmationPanel.current?.focus({ preventScroll: true });
+    confirmationPanel.current?.scrollIntoView({ block: "start", behavior: "auto" });
+  }, [attempt]);
 
   useEffect(() => {
     try {
@@ -49,7 +64,7 @@ export default function PhonePage() {
 
   async function register() {
     if (!allowed || !owner || lock.current) return;
-    lock.current = true; setBusy(true); setMessage(null);
+    lock.current = true; setBusy(true); setMessage(null); setRegistrationMessage(null);
     try {
       if (!crypto.subtle) throw new Error("Защищённый ключ недоступен. Откройте страницу по HTTPS.");
       const key = (await storedProof(owner)) || await generateProof();
@@ -59,8 +74,8 @@ export default function PhonePage() {
       const result = await apiRequest<{ device_id: string; reason_human: string }>("/devices", await auth.token(), { public_key: key.publicKey, label: "Браузер рабочего" });
       if (!result.device_id) throw new Error("Сервер не подтвердил привязку телефона.");
       const registered = { ...key, registered: true };
-      await storedProof(owner, registered); setProof(registered); setMessage(result.reason_human);
-    } catch (error) { setMessage(errorMessage(error)); }
+      await storedProof(owner, registered); setProof(registered); setRegistrationMessage(result.reason_human);
+    } catch (error) { setRegistrationMessage(errorMessage(error)); }
     finally { lock.current = false; setBusy(false); }
   }
 
@@ -107,12 +122,14 @@ export default function PhonePage() {
     <section className="panel">
       <div className="section-heading"><h2>Ключ телефона</h2><span className="badge">{proof?.registered ? "Сохранён в браузере" : "Не привязан"}</span></div>
       <p className="muted">Привяжите этот браузер к своей учётной записи один раз. Повторная привязка отключит прежний ключ на сервере.</p>
+      <p className="hint">До первой привязки администратор должен завести рабочего с эталонным фото в <a href="/admin">админке</a> и связать его с вашей учёткой. Считывание QR само по себе этого не делает.</p>
       <button className="button full-width" disabled={!allowed || busy} onClick={register}>{busy ? "Выполняется запрос…" : proof?.registered ? "Повторить привязку этого телефона" : "Привязать этот телефон"}</button>
+      {registrationMessage && <p role="status" aria-live="polite" className="hint">{registrationMessage}</p>}
       <p className="hint">После очистки данных браузера потребуется новая привязка. Ключ другой учётной записи здесь не используется.</p>
     </section>
-    <section className="panel">
+    <section className="panel" ref={confirmationPanel} tabIndex={-1} aria-label="Подтверждение прохода">
       <div className="section-heading"><h2>Подтверждение прохода</h2><span className="badge">{confirmed ? "Подтверждено" : attempt ? "QR получен" : "Ожидание QR"}</span></div>
-      <Status tone={refusal ? "error" : attempt ? "waiting" : "neutral"} title={refusal ?? (confirmed ? "Телефон подтвердил попытку" : attempt ? "Готово к подтверждению" : "Сканируйте QR контролёра")}>{confirmed ? "Теперь контролёр снимает лицо. Это ещё не разрешение прохода: решение принимает сервер." : "QR выбирает попытку, а ваш ключ подписывает её. При истёкшем коде попросите контролёра открыть новый."}</Status>
+      <Status tone={refusal ? "error" : attempt ? "waiting" : "neutral"} title={refusal ?? (confirmed ? "Телефон подтвердил попытку" : attempt ? "QR считан — нужен следующий шаг" : "Подготовка к проходу")}>{refusal ? "Подтверждение не принято. Проверьте причину отказа выше; для новой попытки попросите контролёра открыть свежий QR." : nextStep}</Status>
       <button className="button full-width" disabled={!allowed || !proof?.registered || !attempt || busy || confirmed} onClick={confirm}>Подтвердить попытку</button>
       <details className="manual-qr"><summary>Вставить ссылку из QR вручную</summary><label htmlFor="qr-link">Ссылка контролёра</label><input id="qr-link" type="text" autoComplete="off" value={input} onChange={(event) => setInput(event.target.value)} placeholder="https://…/phone#attempt=…" /><button className="button button-secondary" onClick={() => acceptQr(input)} disabled={!input.trim() || busy}>Прочитать ссылку</button></details>
       {message && <p role="status" aria-live="polite" className="hint">{message}</p>}
