@@ -34,7 +34,7 @@ export function CameraPreview({ title, description, onCapture, onQr, enabled = t
 
   const onQrRef = useRef(onQr); onQrRef.current = onQr;
   useEffect(() => {
-    if (!active) return;
+    if (!active || !onQrRef.current) return;
     const canvas = document.createElement("canvas");
     const context = canvas.getContext("2d", { willReadFrequently: true });
     let stopped = false;
