@@ -1,8 +1,10 @@
+import { apiBase } from "./config";
+
 export type Attempt = { attempt_id: string; nonce: string; expires_at: string; direction: "in" | "out" };
 export type Decision = { decision: "allow" | "deny"; reason_human?: string; reason: string; reason_code?: string };
 
 export async function apiRequest<T>(path: string, token: string, body?: unknown, keepalive = false): Promise<T> {
-  const base = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001").replace(/\/$/, "");
+  const base = apiBase();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 20000);
   try {

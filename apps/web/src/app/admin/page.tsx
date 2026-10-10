@@ -55,7 +55,7 @@ export default function AdminPage() {
       <p className="text-xs font-bold tracking-widest text-emerald-900 uppercase">Кадры</p>
       <h1 className="mt-2 text-3xl font-semibold tracking-tight">Люди и эталон</h1>
       <p className="mt-2 mb-5 max-w-2xl text-stone-600">
-        Заведите человека и свяжите его с учёткой рабочего. Эталон сохраняет только сервер, и только если на фото одно лицо.
+        Заведите человека для телефона worker: подставьте его учётку, приложите фото и сохраните. Сервер сам снимет эталон лица. Без фото карточка не создаётся.
       </p>
       {session ? (
         <>
@@ -79,6 +79,7 @@ function AdminDesk({ session }: { session: Session }) {
   const [formError, setFormError] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [lookupPending, setLookupPending] = useState(false);
 
   const load = useCallback(async () => {
     setListError(null);
@@ -117,11 +118,46 @@ function AdminDesk({ session }: { session: Session }) {
     setSaved(null);
   }
 
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    setPending(true);
+  async function useWorkerAccount() {
     setFormError(null);
     setSaved(null);
+    setLookupPending(true);
+    const response = await apiRequest("/directory/worker", "GET", session.token);
+    setLookupPending(false);
+    if (response.offline) {
+      setFormError(offlineReason);
+      return;
+    }
+    if (response.status !== 200) {
+      setFormError(serverReason(response.json, "Учётку worker прочитать не удалось."));
+      return;
+    }
+    const sub = typeof response.json?.keycloak_sub === "string" ? response.json.keycloak_sub : "";
+    const name = typeof response.json?.full_name === "string" ? response.json.full_name : "";
+    if (!sub) {
+      setFormError("Keycloak не вернул sub учётки worker.");
+      return;
+    }
+    setDraft((current) => ({
+      ...current,
+      keycloak_sub: sub,
+      full_name: current.full_name.trim() ? current.full_name : name,
+    }));
+  }
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    setFormError(null);
+    setSaved(null);
+    if (!draft.id && !file) {
+      setFormError("Приложите фото человека. Эталон записывает сервис лиц, без фото карточку не создаём.");
+      return;
+    }
+    if (!draft.keycloak_sub.trim()) {
+      setFormError("Сначала подставьте учётку worker. Человек должен быть связан с её sub.");
+      return;
+    }
+    setPending(true);
     const body: Record<string, string | null> = {
       full_name: draft.full_name.trim() || null,
       keycloak_sub: draft.keycloak_sub.trim() || null,
@@ -163,10 +199,23 @@ function AdminDesk({ session }: { session: Session }) {
 
   return (
     <div className="grid gap-4 lg:grid-cols-2">
-      <Panel title={draft.id ? "Правка карточки" : "Новый человек"}>
+      <Panel title={draft.id ? "Правка карточки" : "Завести человека для учётки worker"}>
         <form onSubmit={(event) => void submit(event)} className="grid gap-3">
+          {!draft.id ? (
+            <Notice tone="wait" title="Три шага, если в базе ещё никого нет">
+              Подставьте учётку worker, приложите одно фото этого человека и нажмите «Завести и записать эталон».
+            </Notice>
+          ) : null}
+          <button
+            className="min-h-12 rounded-xl border border-emerald-900 px-4 font-semibold text-emerald-950"
+            type="button"
+            disabled={lookupPending || pending}
+            onClick={() => void useWorkerAccount()}
+          >
+            {lookupPending ? "Читаем Keycloak…" : "Подставить учётку worker"}
+          </button>
           <Field label="ФИО" value={draft.full_name} onChange={(value) => setDraft({ ...draft, full_name: value })} />
-          <Field label="Учётка Keycloak, sub" value={draft.keycloak_sub} onChange={(value) => setDraft({ ...draft, keycloak_sub: value })} />
+          <Field label="Учётка worker, sub" value={draft.keycloak_sub} onChange={(value) => setDraft({ ...draft, keycloak_sub: value })} />
           <Field label="Табельный номер" value={draft.badge_number} onChange={(value) => setDraft({ ...draft, badge_number: value })} />
           <Field label="Должность" value={draft.position} onChange={(value) => setDraft({ ...draft, position: value })} />
           <Field label="Организация" value={draft.company} onChange={(value) => setDraft({ ...draft, company: value })} />
@@ -190,7 +239,7 @@ function AdminDesk({ session }: { session: Session }) {
               onChange={(event) => setFile(event.target.files?.[0] ?? null)}
             />
           </label>
-          <p className="text-xs text-stone-500">sub виден на телефоне рабочего после входа. Если сервис лиц не поднят, сервер вернёт отказ и карточку с фото не сохранит.</p>
+          <p className="text-xs text-stone-500">Кнопка выше берёт sub учётки worker из Keycloak. Новая карточка уходит на сервер вместе с фото: эталон считает сервис лиц. Если лиц на фото нет, несколько или сервис не готов, карточка не сохранится.</p>
           {formError ? (
             <p className="text-sm text-red-800" role="alert">
               {formError}
@@ -199,7 +248,7 @@ function AdminDesk({ session }: { session: Session }) {
           {saved ? <Notice tone="ok" title="Сохранено">{saved}</Notice> : null}
           <div className="flex flex-wrap gap-2">
             <button className="min-h-12 flex-1 rounded-xl bg-emerald-900 px-4 font-semibold text-white" type="submit" disabled={pending}>
-              {pending ? "Сохраняем…" : draft.id ? "Обновить" : "Завести"}
+              {pending ? "Сохраняем…" : draft.id ? "Обновить" : "Завести и записать эталон"}
             </button>
             <button
               className="min-h-12 rounded-xl border border-stone-300 px-4 font-semibold"
@@ -235,7 +284,7 @@ function AdminDesk({ session }: { session: Session }) {
             {listError}
           </p>
         ) : null}
-        {people && people.length === 0 && !listError ? <p className="text-sm text-stone-600">Людей пока нет. Заведите карточку и приложите эталон.</p> : null}
+        {people && people.length === 0 && !listError ? <p className="text-sm text-stone-600">Людей пока нет. Слева: «Подставить учётку worker», фото и «Завести и записать эталон».</p> : null}
         <ul className="grid gap-3">
           {people?.map((person) => (
             <li key={person.id} className="rounded-xl border border-stone-200 p-3">

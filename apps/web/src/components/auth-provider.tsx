@@ -2,11 +2,12 @@
 
 import Keycloak from "keycloak-js";
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { keycloakBase } from "@/lib/config";
 
 let initialization: Promise<Keycloak> | undefined;
 function initialize() {
   if (!initialization) initialization = (async () => {
-    const url = process.env.NEXT_PUBLIC_KEYCLOAK_URL;
+    const url = keycloakBase();
     if (!url) throw new Error("Вход не настроен. Укажите адрес Keycloak в конфигурации приложения.");
     const client = new Keycloak({ url, realm: process.env.NEXT_PUBLIC_KEYCLOAK_REALM || "prohodnaya", clientId: process.env.NEXT_PUBLIC_KEYCLOAK_CLIENT_ID || "web" });
     await client.init({ pkceMethod: "S256", checkLoginIframe: false, responseMode: "query" });

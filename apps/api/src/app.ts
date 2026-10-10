@@ -6,6 +6,7 @@ import { registerAnalytics } from "./modules/analytics.js";
 import { registerAssistant } from "./modules/assistant.js";
 import { registerAttempts } from "./modules/attempts.js";
 import { registerDevices } from "./modules/devices.js";
+import { registerDirectory } from "./modules/directory.js";
 import { registerLocations } from "./modules/locations.js";
 import { registerMe } from "./modules/me.js";
 import { registerPeople } from "./modules/people.js";
@@ -35,6 +36,7 @@ export function createApp(pool: pg.Pool): ApiApp {
   });
 
   registerMe(app, pool);
+  registerDirectory(app);
   registerPeople(app, pool);
   registerDevices(app, pool);
   registerAttempts(app, pool);

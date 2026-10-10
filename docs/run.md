@@ -1,6 +1,12 @@
+Телефон открывает `https://<LAN-IP>:8443/phone` после установки локального ЦС.
+
+Один шаг на Android: откройте `http://<LAN-IP>:8088/ca.crt` и установите файл как сертификат ЦС (Настройки → Безопасность → Установка сертификатов → Сертификат ЦС). Затем откройте `https://<LAN-IP>:8443/phone`.
+
+Ноутбук открывает тот же адрес: `https://<LAN-IP>:8443/gate`. `<LAN-IP>` — это `LAN_IP` в `.env`, адрес ноутбука в Wi-Fi.
+
 # Запуск стенда
 
-Команды для этого репозитория. Compose поднимает postgres, keycloak, api, face и web. Камера и геолокация в браузере требуют защищённого контекста. Для телефона и планшета в локальной сети нужен HTTPS. Исключение браузера — `http://localhost` на той же машине.
+Команды для этого репозитория. Compose поднимает postgres, keycloak, api, face, web и HTTPS-прокси. Ноутбук и телефон в одной Wi-Fi открывают один origin `https://<LAN-IP>:8443`. Камера и геолокация работают на этом адресе.
 
 ## С нуля
 
@@ -9,7 +15,18 @@ git clone git@github.com:surgezxc/vaibaton-prohodnaya.git
 cd vaibaton-prohodnaya
 cp .env.example .env
 cp apps/api/.env.example apps/api/.env
+```
+
+В `.env` впишите `LAN_IP` — IPv4 ноутбука в Wi-Fi, без `https://` и без порта. Linux: `hostname -I | awk '{print $1}'`. macOS: `ipconfig getifaddr en0`.
+
+```bash
 docker compose up --build
+```
+
+Когда образы уже собраны и скачаны, повторный запуск без сети:
+
+```bash
+docker compose up
 ```
 
 Пароли только в `.env`, в git их не кладут. Заполните `POSTGRES_PASSWORD` и `KEYCLOAK_ADMIN_PASSWORD`. Если переменная пустая, compose берёт `change-me`. Админ Keycloak — `KEYCLOAK_ADMIN` / `KEYCLOAK_ADMIN_PASSWORD`, по умолчанию `admin` / `change-me`.
@@ -21,12 +38,14 @@ docker compose up --build
 | Postgres | `localhost:5432`, база `prohodnaya`, пользователь `prohodnaya` |
 | Keycloak | `http://localhost:8081`, realm `prohodnaya` |
 | API | `http://localhost:3001` |
-| Web | `http://localhost:43123` |
+| Телефон и ноутбук | `https://<LAN-IP>:8443` — один origin. Телефон: `/phone`. Ноутбук: `/gate`, `/admin` |
+| Сертификат ЦС | `http://<LAN-IP>:8088/ca.crt` |
+| Web внутри сети Docker | `web:43123`, с хоста `http://localhost:43123` для отладки, не для телефона |
 | Face | порт на хост не публикуется; API ходит на `http://face:8000` |
 
-Сервисы compose — эти пять. Хостовых портов 3000 и 9000 в файле нет. Keycloak в compose слушает HTTP `8081`, не HTTPS `8443`.
+Keycloak в compose слушает HTTP `8081` только внутри стенда. Браузер ходит в него через `https://<LAN-IP>:8443`. Issuer токена — `https://<LAN-IP>:8443/realms/prohodnaya`.
 
-Порог сравнения лиц. README сервиса `deliverables/a-shorokhov-face-model/services/face/README.md` и значение по умолчанию в `face.py` — **0.69** (на пакете кадров 41/52 своих и 0/468 чужих; прежний порог 0.74 давал 31/52 своих). В `docker-compose.yml` переменная `FACE_MATCH_THRESHOLD` сейчас равна `"0.74"`. Пока строка compose не совпадёт с README, контейнер сравнивает с 0.74. Рядом в том же сервисе: `FACE_DETECT_CONFIDENCE=0.25`, `FACE_LIVENESS_THRESHOLD=0.8`.
+Порог сравнения лиц в `docker-compose.yml`: `FACE_MATCH_THRESHOLD=0.69`. Ниже 0.69 не опускать. Рядом: `FACE_DETECT_CONFIDENCE=0.25`, `FACE_LIVENESS_THRESHOLD=0.8`.
 
 Проверка, что контейнеры живы:
 
@@ -63,35 +82,21 @@ Realm импортируется из `infra/keycloak/prohodnaya-realm.json`. В
 
 Направление QR: код показывает `/gate`, сканирует `/phone`. Скопированный JWT без ключа телефона — отказ «чужое устройство». Passkey нет. Регистрация ключа оставлена экрану `/phone`.
 
-Экраны в `apps/web`. Стенд на этой машине: `http://localhost:43123/gate` (учётка `gate`), `/phone` (`worker`), `/admin` (`admin`), `/admin/zones`, `/manager` (`manager`). Без compose: `cd apps/web && npm ci && npm run dev`.
+Экраны на общем адресе `https://<LAN-IP>:8443`: `/gate` (учётка `gate`), `/phone` (`worker`), `/admin` (`admin`), `/admin/zones`, `/manager` (`manager`). В `/admin` нажмите «Подставить учётку worker», приложите фото и «Завести и записать эталон». Без compose: `cd apps/web && npm ci && npm run dev`.
 
 Клиент браузера в realm — `web` (public). Секрет клиента `api` в realm — заглушка `dev-only-change-me`, не боевой ключ.
 
 Маршрут `/admin/zones` в `apps/web` есть: план, три точки и полигоны. Вкладка «Зоны и схема» на странице `/admin` — экран прежней копии `alison/apps/web`, не маршрут стенда.
 
-## HTTPS
+## Сертификат на Android
 
-Камера и геолокация работают только в защищённом контексте. Адрес `http://` в локальной сети им не подходит, даже если API с телефона открывается. `http://localhost` годится только на той же машине, где открыт браузер.
+Прокси `https` в compose выпускает локальный ЦС Caddy (`tls internal`) и отдаёт страницу, API и Keycloak с одного адреса `https://<LAN-IP>:8443`. Файл ЦС не секрет репозитория: он появляется в томе `caddy_data` при старте.
 
-Compose отдаёт postgres, keycloak, api, face и web по HTTP на портах выше. Перед показом с планшета или телефона origin браузера закрывают TLS. Пример на Docker, без установки пакетов в операционную систему. Сертификат внутренний, браузер один раз предупредит:
+1. На телефоне в той же Wi-Fi откройте `http://<LAN-IP>:8088/ca.crt`.
+2. Установите его как сертификат ЦС: Настройки → Безопасность → Установка сертификатов → Сертификат ЦС. Если Android спросит блокировку экрана, задайте её.
+3. Откройте `https://<LAN-IP>:8443/phone`. Ноутбук открывает `https://<LAN-IP>:8443/gate`. QR с ноутбука ведёт на тот же origin.
 
-```bash
-mkdir -p /tmp/prohodnaya-caddy
-cat > /tmp/prohodnaya-caddy/Caddyfile <<'EOF'
-:443 {
-	tls internal
-	reverse_proxy host.docker.internal:43123
-}
-EOF
-docker run --rm --name prohodnaya-https -p 8443:443 \
-  -v /tmp/prohodnaya-caddy/Caddyfile:/etc/caddy/Caddyfile:ro \
-  -v prohodnaya-caddy-data:/data \
-  caddy:2-alpine
-```
-
-Для камеры на планшете и телефоне в `reverse_proxy` стоит порт web (`43123`), не API. Страница, с которой вызывают камеру, должна быть открыта по HTTPS. Файлы `*.pem` в git не попадают.
-
-Живой заход с телефона по HTTPS не подтверждён. Compose держит `KEYCLOAK_ISSUER` равным `http://localhost:8081/realms/prohodnaya`, а образ web собирается с `NEXT_PUBLIC_KEYCLOAK_URL` по умолчанию `http://localhost:8081`. С телефона `localhost` — это сам телефон. Пока issuer и адрес Keycloak не совпадут с именем, которое видит устройство, вход с телефона не обещаем.
+Если браузер ноутбука не доверяет адресу, установите тот же `http://<LAN-IP>:8088/ca.crt`. Новый том `caddy_data` выпускает новый ЦС, тогда файл ставят заново. Сервис `keycloak-redirects` должен завершиться с кодом 0, иначе вход с этого адреса не вернётся в приложение.
 
 ## Остановка
 

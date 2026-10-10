@@ -6,6 +6,7 @@ import { useAttemptStatus } from "@/hooks/use-attempt-status";
 import { CameraPreview } from "@/components/camera-preview";
 import { ScreenShell, Status } from "@/components/screen-shell";
 import { useAuth } from "@/components/auth-provider";
+import { keycloakBase } from "@/lib/config";
 import { apiRequest, errorMessage } from "@/lib/pass-api";
 import { generateProof, storedProof, signNonce, parseAttempt, type QrAttempt, type StoredProof } from "@/lib/phone-proof";
 
@@ -21,7 +22,7 @@ export default function PhonePage() {
   const lock = useRef(false);
   const allowed = auth.authenticated && auth.roles.includes("worker");
   const result = useAttemptStatus(allowed ? tracked : null, auth.subject, auth.token);
-  const owner = auth.subject ? `${process.env.NEXT_PUBLIC_KEYCLOAK_URL}|${process.env.NEXT_PUBLIC_KEYCLOAK_REALM || "prohodnaya"}|${auth.subject}` : null;
+  const owner = auth.subject ? `${keycloakBase()}|${process.env.NEXT_PUBLIC_KEYCLOAK_REALM || "prohodnaya"}|${auth.subject}` : null;
 
   useEffect(() => {
     try {

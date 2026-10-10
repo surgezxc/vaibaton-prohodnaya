@@ -99,6 +99,20 @@ test('планшет ждёт подпись; загрузка кадра и о�
   await expect.poll(() => s.cancels).toBe(1);
 });
 
+test('скрытие вкладки не отменяет QR', async ({ context, page }) => {
+  const s = state(); await setup(context, 'gate', s); await login(page, '/gate');
+  await page.getByRole('button', { name: 'Открыть QR', exact: true }).click();
+  await expect(page.getByAltText('Одноразовый QR для телефона рабочего')).toBeVisible();
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'hidden', { configurable: true, value: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await expect(page.getByAltText('Одноразовый QR для телефона рабочего')).toBeVisible();
+  expect(s.cancels).toBe(0);
+  await page.getByRole('button', { name: 'Закрыть QR' }).click();
+  await expect.poll(() => s.cancels).toBe(1);
+});
+
 test('телефон хранит ключ, подписывает QR; GPS только при смене, симуляция останавливает GPS и выход отключает зоны', async ({ context, page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   const s = state(); await setup(context, 'worker', s); await login(page, '/phone');

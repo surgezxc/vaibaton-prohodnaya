@@ -23,8 +23,6 @@ export default function GatePage() {
   const active = useRef<Attempt | null>(null);
   const operation = useRef(0);
   const lock = useRef(false);
-  const token = useRef(auth.token);
-  token.current = auth.token;
   const allowed = auth.authenticated && auth.roles.includes("gate");
   const expired = attempt ? now >= Date.parse(attempt.expires_at) : false;
   const journal = useAttemptStatus(allowed ? attempt?.attempt_id || null : null, auth.subject, auth.token);
@@ -42,24 +40,6 @@ export default function GatePage() {
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, [attempt, decision]);
-
-  useEffect(() => {
-    function abandon() {
-      operation.current += 1;
-      const old = active.current;
-      active.current = null;
-      if (old) void token.current().then((t) => apiRequest(`/attempts/${old.attempt_id}/cancel`, t, {}, true)).catch(() => {});
-      return old;
-    }
-    function hide() {
-      if (!document.hidden) return;
-      const old = abandon();
-      setAttempt(null); setQr(null); setFrame(null); setBusy(false); lock.current = false;
-      if (old) setMessage("QR скрыт. Отмена отправлена по возможности; при потере связи попытка живёт до серверного срока.");
-    }
-    document.addEventListener("visibilitychange", hide);
-    return () => { document.removeEventListener("visibilitychange", hide); abandon(); };
-  }, []);
 
   async function openAttempt() {
     if (lock.current || !allowed) return;
@@ -132,7 +112,7 @@ export default function GatePage() {
           <button className="button" disabled={!allowed || busy} onClick={openAttempt}>{attempt ? "Открыть новый QR" : "Открыть QR"}</button>
           {attempt && <button className="button button-secondary" disabled={busy} onClick={closeAttempt}>Закрыть QR</button>}
         </div>
-        <p className="hint">Закрытие отменяет попытку через API. При недоступной сети действует срок сервера.</p>
+        <p className="hint">Скрытие вкладки попытку не отменяет. Отмена только кнопкой «Закрыть QR». Если сеть пропала, попытка живёт до серверного срока.</p>
       </section>
       <CameraPreview enabled={canCapture} key={attempt?.attempt_id || "idle"} title="Камера КПП" description="После подтверждения рабочего снимите лицо и отправьте кадр на проверку." onCapture={canCapture ? setFrame : undefined} />
     </div>
@@ -142,7 +122,7 @@ export default function GatePage() {
           const file = event.currentTarget.files?.[0]; event.currentTarget.value = "";
           if (!file) return;
           const version = operation.current;
-          try { const loaded = await imageFileToFrame(file); if (version === operation.current && active.current?.attempt_id === attempt?.attempt_id && Date.now() < Date.parse(attempt?.expires_at || "") && !document.hidden) setFrame(loaded); }
+          try { const loaded = await imageFileToFrame(file); if (version === operation.current && active.current?.attempt_id === attempt?.attempt_id && Date.now() < Date.parse(attempt?.expires_at || "")) setFrame(loaded); }
           catch (error) { if (version === operation.current) setMessage(errorMessage(error)); }
         }} />
       </label>

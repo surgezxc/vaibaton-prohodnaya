@@ -1,4 +1,5 @@
-# Стенд: postgres, keycloak, api, face, web.
+# Стенд: postgres, keycloak, api, face, web, https.
+# Телефон и ноутбук открывают один адрес https://$LAN_IP:8443. Туннель не нужен.
 # face — сборка Саши, порог 0.69, каталог не переносить.
 
 services:
@@ -30,8 +31,9 @@ services:
       KC_DB_USERNAME: prohodnaya
       KC_DB_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
       KC_HTTP_ENABLED: "true"
-      KC_HOSTNAME: http://localhost:8081
+      KC_HOSTNAME: https://${LAN_IP:?Задайте LAN_IP в .env — адрес ноутбука в Wi-Fi}:8443
       KC_HOSTNAME_STRICT: "false"
+      KC_PROXY_HEADERS: xforwarded
       KC_HEALTH_ENABLED: "true"
     volumes:
       - ./infra/keycloak:/opt/keycloak/data/import:ro
@@ -46,8 +48,11 @@ services:
     environment:
       PORT: 3001
       DATABASE_URL: postgres://prohodnaya:${POSTGRES_PASSWORD:-change-me}@postgres:5432/prohodnaya
-      KEYCLOAK_ISSUER: http://localhost:8081/realms/prohodnaya
+      KEYCLOAK_ISSUER: https://${LAN_IP:?Задайте LAN_IP в .env — адрес ноутбука в Wi-Fi}:8443/realms/prohodnaya
       KEYCLOAK_JWKS_URL: http://keycloak:8080/realms/prohodnaya/protocol/openid-connect/certs
+      KEYCLOAK_ADMIN_URL: http://keycloak:8080
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-change-me}
       FACE_SERVICE_URL: http://face:8000
       MODEL_PROVIDER: ${MODEL_PROVIDER:-ollama}
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
@@ -55,7 +60,7 @@ services:
       GIGACHAT_API_KEY: ${GIGACHAT_API_KEY:-}
       GIGACHAT_MODEL: ${GIGACHAT_MODEL:-GigaChat}
       ATTEMPT_TTL_SECONDS: 25
-      WEB_ORIGIN: ${WEB_ORIGIN:-*}
+      WEB_ORIGIN: https://${LAN_IP:?Задайте LAN_IP в .env — адрес ноутбука в Wi-Fi}:8443
     ports:
       - "3001:3001"
     depends_on:
@@ -78,11 +83,44 @@ services:
       args:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001}
         NEXT_PUBLIC_KEYCLOAK_URL: ${NEXT_PUBLIC_KEYCLOAK_URL:-http://localhost:8081}
+        NEXT_PUBLIC_USE_PAGE_ORIGIN: "1"
     ports:
       - "43123:43123"
     depends_on:
       - api
 
+  # Одноразово дописывает redirect URI в уже импортированный realm.
+  keycloak-redirects:
+    image: quay.io/keycloak/keycloak:26.0
+    entrypoint: ["/bin/bash", "/tune-redirects.sh"]
+    environment:
+      LAN_IP: ${LAN_IP:?Задайте LAN_IP в .env — адрес ноутбука в Wi-Fi}
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-change-me}
+    volumes:
+      - ./infra/keycloak/tune-redirects.sh:/tune-redirects.sh:ro
+    depends_on:
+      - keycloak
+    restart: "no"
+
+  https:
+    image: caddy:2-alpine
+    environment:
+      LAN_IP: ${LAN_IP:?Задайте LAN_IP в .env — адрес ноутбука в Wi-Fi}
+    ports:
+      - "8443:8443"
+      - "8088:8088"
+    volumes:
+      - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - web
+      - api
+      - keycloak
+
 volumes:
   pgdata:
   face_models:
+  caddy_data:
+  caddy_config:
