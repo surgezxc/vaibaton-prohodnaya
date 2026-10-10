@@ -1,6 +1,6 @@
 # Переход на локальную модель
 
-Текстовый слой один. Переключатель — `MODEL_PROVIDER=gigachat|ollama`. Локально работает Ollama, модель `qwen3:4b`. Лицо (YOLO, InsightFace) этим переключателем не меняется.
+Текстовый слой один. Переключатель — `MODEL_PROVIDER=gigachat|ollama`. Локально работает Ollama, модель `qwen3:4b`. Лицо (YOLO, InsightFace) этим переключателем не меняется. Порог лица — в [run.md](run.md): README сервиса и код по умолчанию держат 0.69, строка compose сейчас передаёт 0.74.
 
 В `docker-compose.yml` у api уже стоит `OLLAMA_MODEL` по умолчанию `qwen3:4b` и `OLLAMA_BASE_URL=http://host.docker.internal:11434`. В `apps/api/.env.example` для запуска api с хоста — `http://127.0.0.1:11434`.
 
@@ -51,3 +51,9 @@ GIGACHAT_API_KEY=ключ-не-в-git
 Ключ только в `.env`. После смены снова `docker compose up -d --build api`. Тот же вопрос, те же числа из базы. Если GigaChat молчит, API пишет статус и не подставляет выдуманные цифры.
 
 `MODEL_PROVIDER` принимает только `gigachat` и `ollama`.
+
+## Что не подтверждено
+
+Живой ключ GigaChat на этом стенде не проверялся. Пустой `GIGACHAT_API_KEY` в `.env.example` — не пройденный вызов.
+
+10 октября 2026 года запуск Ollama и запрос к модели в среде черновиков не выполнялись: демон Docker там не ответил, поэтому `docker run` из этой инструкции не к чему было подключаться. Ответ модели, время ответа и работа помощника с `qwen3:4b` той проверкой не подтверждены. `docker compose config --quiet` подтверждает синтаксис compose, не доступность Ollama или API.
