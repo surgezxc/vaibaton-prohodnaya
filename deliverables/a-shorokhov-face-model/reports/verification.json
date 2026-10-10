@@ -48,5 +48,12 @@
     "spoof_resistance_confirmed": false
   },
   "migration": "Recalculate all reference embeddings using the new /embed pipeline before deploying",
-  "docker_build_and_full_stand_tested": false
+  "docker_build_and_full_stand_tested": false,
+  "fresh_http_reference_enrollment": {
+    "count": 10,
+    "endpoint": "/embed",
+    "old_vectors_used": false,
+    "database_updated": false,
+    "report": "fresh-http-enrollment.json"
+  }
 }

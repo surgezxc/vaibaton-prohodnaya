@@ -152,8 +152,10 @@ node --test test_camera.cjs
 python check_package.py '../../../../Первый пакет' --http-url http://127.0.0.1:8001
 ```
 
-Он сверяет реальные ответы `/compare` со всеми 52 своими и 468 чужими
-cosine, а также проверяет отказы на шести кадрах с несколькими лицами.
+В HTTP-режиме он заново получает каждый эталон через `/embed`, проверяет
+соответствие актуальному pipeline и использует только эти свежие векторы.
+Затем сверяет реальные ответы `/compare` со всеми 52 своими и 468 чужими
+cosine, проверяет пустой кадр, два лица и шесть отказов пакета по количеству лиц.
 Граница 45/52 от этого не меняется.
 
 RGB-модель оценила сохранённые кадры как live; это не доказательство защиты
@@ -164,3 +166,9 @@ RGB-модель оценила сохранённые кадры как live; �
 Источники: [YOLO-face](https://github.com/akanametov/yolo-face),
 [InsightFace liveness](https://github.com/deepinsight/insightface/blob/master/python-package/docs/liveness.md),
 [проверка InsightFace с зеркальными векторами](https://github.com/deepinsight/insightface/blob/master/recognition/arcface_torch/eval/verification.py).
+
+Для передачи свежих эталонов бэкендеру можно добавить
+`--embeddings-output .reports/fresh-reference-embeddings.json`. Это приватные
+512-мерные векторы: файл исключён из Git, права 600, публиковать его нельзя.
+Проверка не обновляет PostgreSQL; для записи в БД требуется адрес общего API,
+его авторизация и сопоставление эталонов с существующими карточками людей.
