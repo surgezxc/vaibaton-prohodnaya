@@ -1,5 +1,5 @@
 # Стенд: postgres, keycloak, api, face, web.
-# face — сборка Саши, порог 0.74, каталог не переносить.
+# face — сборка Саши, порог 0.69, каталог не переносить.
 
 services:
   postgres:
@@ -66,7 +66,7 @@ services:
     build: ./deliverables/a-shorokhov-face-model/services/face
     environment:
       FACE_MODEL_ROOT: /models
-      FACE_MATCH_THRESHOLD: "0.74"
+      FACE_MATCH_THRESHOLD: "0.69"
       FACE_DETECT_CONFIDENCE: "0.25"
       FACE_LIVENESS_THRESHOLD: "0.8"
     volumes:
