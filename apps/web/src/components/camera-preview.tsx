@@ -104,7 +104,7 @@ export function CameraPreview({ title, description, onCapture, onQr, enabled = t
     const context = canvas.getContext("2d");
     if (!context) { setError("Не удалось снять кадр."); return; }
     context.drawImage(video.current, 0, 0);
-    onCapture?.(canvas.toDataURL("image/jpeg", 0.85));
+    onCapture?.(canvas.toDataURL("image/jpeg", 0.95));
     stop();
   }
 

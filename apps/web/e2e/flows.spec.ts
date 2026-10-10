@@ -65,7 +65,7 @@ async function setup(context: BrowserContext, role: 'worker' | 'gate', state: St
     }
     if (url.pathname.endsWith('/cancel')) { state.cancels++; return json(route, { reason_human: 'Код отменён.' }); }
     if (url.pathname.endsWith('/decide')) {
-      expect(state.confirmed).toBe(true); expect(body.nonce).toBe(nonce); expect(body.image_base64).toMatch(/^data:image\/jpeg;base64,/);
+      expect(state.confirmed).toBe(true); expect(body.nonce).toBe(nonce); expect(body.image_base64).toMatch(/^data:image\/png;base64,/);
       state.decided = true;
       return json(route, { decision: state.decision, reason: state.decision === 'deny' ? 'Лицо не совпало с эталоном.' : 'Проход разрешён. Смена открыта.' });
     }
@@ -203,6 +203,20 @@ test('GPS не отправляется чаще минуты; после ост
   await page.getByRole('button', { name: 'Включить симуляцию' }).click();
   await page.clock.fastForward(70000);
   expect(s.locations).toHaveLength(2);
+});
+
+test('повторный скан показывает отказ в заголовке', async ({ context, page }) => {
+  const s = state(); await setup(context, 'worker', s); await login(page, '/phone');
+  await page.getByRole('button', { name: 'Привязать этот телефон' }).click();
+  await expect(page.getByText('Телефон привязан.', { exact: true })).toBeVisible();
+  const replay = 'Этот код уже использован. Повторный проход невозможен.';
+  await context.route('**/attempts/*/scan', route => json(route, { confirmed: false, reason: replay, reason_human: replay, reason_code: 'PROOF_REPLAY' }));
+  await page.locator('summary').click(); await page.locator('#qr-link').fill(qr);
+  await page.getByRole('button', { name: 'Прочитать ссылку' }).click();
+  await page.getByRole('button', { name: 'Подтвердить попытку' }).click();
+  await expect(page.locator('.status strong', { hasText: replay })).toBeVisible();
+  await expect(page.getByText(replay, { exact: true })).toHaveCount(2);
+  await expect(page.getByText('Телефон подтвердил попытку', { exact: true })).toHaveCount(0);
 });
 
 test('потерянный ответ scan восстанавливается чтением собственной попытки', async ({ context, page }) => {

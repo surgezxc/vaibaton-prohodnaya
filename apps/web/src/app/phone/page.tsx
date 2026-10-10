@@ -16,6 +16,7 @@ export default function PhonePage() {
   const [attempt, setAttempt] = useState<QrAttempt | null>(null);
   const [input, setInput] = useState("");
   const [message, setMessage] = useState<string | null>(null);
+  const [refusal, setRefusal] = useState<string | null>(null);
   const [tracked, setTracked] = useState<string | null>(null);
   const [confirmed, setConfirmed] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -38,7 +39,7 @@ export default function PhonePage() {
 
   useEffect(() => {
     let disposed = false;
-    setProof(null); setConfirmed(false); setTracked(null);
+    setProof(null); setConfirmed(false); setTracked(null); setRefusal(null);
     if (auth.subject) {
       try { const saved = JSON.parse(sessionStorage.getItem("prohodnaya-confirmed-attempt") || "null"); if (saved?.sub === auth.subject && typeof saved.id === "string") { setTracked(saved.id); setConfirmed(true); } } catch { sessionStorage.removeItem("prohodnaya-confirmed-attempt"); }
     }
@@ -66,7 +67,7 @@ export default function PhonePage() {
   function acceptQr(text: string): boolean {
     try {
       const parsed = parseAttempt(text.trim(), location.origin);
-      setAttempt(parsed); setConfirmed(false); setTracked(null); setMessage(null);
+      setAttempt(parsed); setConfirmed(false); setTracked(null); setMessage(null); setRefusal(null);
       sessionStorage.removeItem("prohodnaya-confirmed-attempt");
       sessionStorage.setItem("prohodnaya-pending-qr", text.trim());
       setInput(""); return true;
@@ -89,14 +90,15 @@ export default function PhonePage() {
 
   async function confirm() {
     if (!allowed || !owner || !attempt || !proof?.registered || lock.current || confirmed) return;
-    lock.current = true; setBusy(true); setMessage(null);
+    lock.current = true; setBusy(true); setMessage(null); setRefusal(null);
     try {
       const signature = await signNonce(proof.privateKey, attempt.nonce);
       const result = await apiRequest<{ confirmed: boolean; reason_human?: string; reason: string }>(`/attempts/${attempt.attempt_id}/scan`, await auth.token(), { nonce: attempt.nonce, signature });
       if (typeof result.confirmed !== "boolean") throw new Error("Сервер не вернул результат подтверждения.");
-      setConfirmed(result.confirmed); setMessage(result.reason_human || result.reason);
+      const text = result.reason_human || result.reason;
+      setConfirmed(result.confirmed); setMessage(text);
       if (result.confirmed) await track(attempt.attempt_id);
-      else await recover(attempt.attempt_id);
+      else setRefusal(text || "Скан не принят.");
     } catch (error) { setMessage(errorMessage(error)); await recover(attempt.attempt_id); }
     finally { lock.current = false; setBusy(false); }
   }
@@ -110,7 +112,7 @@ export default function PhonePage() {
     </section>
     <section className="panel">
       <div className="section-heading"><h2>Подтверждение прохода</h2><span className="badge">{confirmed ? "Подтверждено" : attempt ? "QR получен" : "Ожидание QR"}</span></div>
-      <Status tone={attempt ? "waiting" : "neutral"} title={confirmed ? "Телефон подтвердил попытку" : attempt ? "Готово к подтверждению" : "Сканируйте QR контролёра"}>{confirmed ? "Теперь контролёр снимает лицо. Это ещё не разрешение прохода: решение принимает сервер." : "QR выбирает попытку, а ваш ключ подписывает её. При истёкшем коде попросите контролёра открыть новый."}</Status>
+      <Status tone={refusal ? "error" : attempt ? "waiting" : "neutral"} title={refusal ?? (confirmed ? "Телефон подтвердил попытку" : attempt ? "Готово к подтверждению" : "Сканируйте QR контролёра")}>{confirmed ? "Теперь контролёр снимает лицо. Это ещё не разрешение прохода: решение принимает сервер." : "QR выбирает попытку, а ваш ключ подписывает её. При истёкшем коде попросите контролёра открыть новый."}</Status>
       <button className="button full-width" disabled={!allowed || !proof?.registered || !attempt || busy || confirmed} onClick={confirm}>Подтвердить попытку</button>
       <details className="manual-qr"><summary>Вставить ссылку из QR вручную</summary><label htmlFor="qr-link">Ссылка контролёра</label><input id="qr-link" type="text" autoComplete="off" value={input} onChange={(event) => setInput(event.target.value)} placeholder="https://…/phone#attempt=…" /><button className="button button-secondary" onClick={() => acceptQr(input)} disabled={!input.trim() || busy}>Прочитать ссылку</button></details>
       {message && <p role="status" aria-live="polite" className="hint">{message}</p>}
