@@ -1,0 +1,23 @@
+{
+  "real_models": true,
+  "saved_photos_not_camera": true,
+  "count_zero": 0,
+  "count_one": 1,
+  "own_file": "Гаджиев_Магомед_Ибрагимович_проходная_3.jpg",
+  "wrong_file": "Иванов_Сергей_Петрович_проходная_1.png",
+  "count_two": 2,
+  "embedding_size": 512,
+  "own": {
+    "face_count": 1,
+    "score": 0.8575954437255859,
+    "match": true,
+    "live": true
+  },
+  "wrong": {
+    "face_count": 1,
+    "score": 0.017243318259716034,
+    "match": false,
+    "live": true
+  },
+  "elapsed_seconds": 1.59
+}

@@ -1,0 +1,5 @@
+.venv
+.models
+.reports
+.cache
+__pycache__
