@@ -1,0 +1,113 @@
+{
+  "realm": "prohodnaya",
+  "enabled": true,
+  "displayName": "Проходная",
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": false,
+  "resetPasswordAllowed": false,
+  "accessTokenLifespan": 43200,
+  "roles": {
+    "realm": [
+      { "name": "worker", "description": "Рабочий" },
+      { "name": "gate", "description": "Контролёр проходной" },
+      { "name": "admin", "description": "Администратор кадров" },
+      { "name": "manager", "description": "Руководитель" }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "web",
+      "name": "Проходная web",
+      "enabled": true,
+      "publicClient": true,
+      "protocol": "openid-connect",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "implicitFlowEnabled": false,
+      "fullScopeAllowed": true,
+      "redirectUris": [
+        "http://localhost:3000/*",
+        "http://127.0.0.1:3000/*",
+        "http://localhost:3002/*",
+        "http://127.0.0.1:3002/*",
+        "http://localhost:4173/*"
+      ],
+      "webOrigins": ["+"],
+      "protocolMappers": [
+        {
+          "name": "realm-roles",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "multivalued": "true",
+            "userinfo.token.claim": "true",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "realm_access.roles",
+            "jsonType.label": "String"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "api",
+      "name": "Проходная api",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "bearerOnly": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "secret": "dev-only-change-me"
+    }
+  ],
+  "users": [
+    {
+      "username": "worker",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Магомед",
+      "lastName": "Гаджиев",
+      "credentials": [{ "type": "password", "value": "dev-only", "temporary": false }],
+      "realmRoles": ["worker"]
+    },
+    {
+      "username": "worker2",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Сергей",
+      "lastName": "Иванов",
+      "credentials": [{ "type": "password", "value": "dev-only", "temporary": false }],
+      "realmRoles": ["worker"]
+    },
+    {
+      "username": "gate",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Контролёр",
+      "lastName": "КПП",
+      "credentials": [{ "type": "password", "value": "dev-only", "temporary": false }],
+      "realmRoles": ["gate"]
+    },
+    {
+      "username": "admin",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Кадры",
+      "lastName": "Админ",
+      "credentials": [{ "type": "password", "value": "dev-only", "temporary": false }],
+      "realmRoles": ["admin"]
+    },
+    {
+      "username": "manager",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Руководитель",
+      "lastName": "Объекта",
+      "credentials": [{ "type": "password", "value": "dev-only", "temporary": false }],
+      "realmRoles": ["manager"]
+    }
+  ]
+}

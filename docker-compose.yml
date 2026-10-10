@@ -1,0 +1,67 @@
+# Минимальный стенд: postgres, keycloak, api.
+# alisondl333-oss дальше правит этот файл и добавит web и face.
+# Пока face нет в compose, decide отвечает «Распознавание лиц не готово» и пишет отказ в журнал.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: prohodnaya
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+      POSTGRES_DB: prohodnaya
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U prohodnaya -d prohodnaya"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-change-me}
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: prohodnaya
+      KC_DB_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+      KC_HTTP_ENABLED: "true"
+      KC_HOSTNAME: http://localhost:8081
+      KC_HOSTNAME_STRICT: "false"
+      KC_HEALTH_ENABLED: "true"
+    volumes:
+      - ./infra/keycloak:/opt/keycloak/data/import:ro
+    ports:
+      - "8081:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    build: ./apps/api
+    environment:
+      PORT: 3001
+      DATABASE_URL: postgres://prohodnaya:${POSTGRES_PASSWORD:-change-me}@postgres:5432/prohodnaya
+      KEYCLOAK_ISSUER: http://localhost:8081/realms/prohodnaya
+      KEYCLOAK_JWKS_URL: http://keycloak:8080/realms/prohodnaya/protocol/openid-connect/certs
+      FACE_SERVICE_URL: http://face:8000
+      MODEL_PROVIDER: ${MODEL_PROVIDER:-ollama}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3:4b}
+      GIGACHAT_API_KEY: ${GIGACHAT_API_KEY:-}
+      GIGACHAT_MODEL: ${GIGACHAT_MODEL:-GigaChat}
+      ATTEMPT_TTL_SECONDS: 25
+      WEB_ORIGIN: ${WEB_ORIGIN:-*}
+    ports:
+      - "3001:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  pgdata:
