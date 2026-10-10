@@ -1,6 +1,6 @@
 # Запуск стенда
 
-Команды для этого репозитория. Поднимаются postgres, keycloak и api. Сервисов `web` и `face` в compose пока нет: лицо без сервиса отвечает «Распознавание лиц не готово», экраны ещё в работе.
+Команды для этого репозитория. Поднимаются postgres, keycloak, api, face и web.
 
 ## С нуля
 
@@ -20,6 +20,7 @@ docker compose up --build
 | Postgres | `localhost:5432`, база `prohodnaya`, пользователь `prohodnaya` |
 | Keycloak | `http://localhost:8081`, realm `prohodnaya` |
 | API | `http://localhost:3001` |
+| Web | `http://localhost:43123` |
 
 Проверка, что контейнеры живы:
 
@@ -52,7 +53,7 @@ Realm импортируется из `infra/keycloak/prohodnaya-realm.json`. П
 | `worker` | `worker` | `/phone` — сканирует QR |
 | `worker2` | `worker` | второй телефон, чтобы проверить «чужое устройство» |
 
-Экраны `/gate`, `/phone`, `/admin`, `/manager` появятся в `apps/web`. Пока их нет, API проверяют теми же ролями: токен Keycloak, realm `prohodnaya`.
+Экраны в `apps/web`. Стенд: `http://localhost:43123/gate` (учётка `gate`), `/phone` (`worker`), `/admin` (`admin`), `/manager` (`manager`). Без compose: `cd apps/web && npm ci && npm run dev`.
 
 Клиент браузера в realm — `web` (public). Секрет клиента `api` в realm — заглушка `dev-only-change-me`, не боевой ключ.
 
@@ -60,14 +61,14 @@ Realm импортируется из `infra/keycloak/prohodnaya-realm.json`. П
 
 Камера и геолокация в браузере работают только в защищённом контексте. Адрес `http://` в локальной сети им не подходит, даже если API с телефона открывается. Исключение браузера — `http://localhost` на той же машине. Планшету и телефону этого мало.
 
-Compose отдаёт postgres, keycloak и api по HTTP на портах выше. Перед показом origin браузера закрывают TLS. Пример на Docker, без установки пакетов в ОС (сертификат внутренний, браузер один раз предупредит):
+Compose отдаёт postgres, keycloak, api, face и web по HTTP на портах выше. Face наружу порт не публикует: API ходит на `http://face:8000`. Перед показом origin браузера закрывают TLS. Пример на Docker, без установки пакетов в ОС (сертификат внутренний, браузер один раз предупредит):
 
 ```bash
 mkdir -p /tmp/prohodnaya-caddy
 cat > /tmp/prohodnaya-caddy/Caddyfile <<'EOF'
 :443 {
 	tls internal
-	reverse_proxy host.docker.internal:3001
+	reverse_proxy host.docker.internal:43123
 }
 EOF
 docker run --rm --name prohodnaya-https -p 8443:443 \
@@ -76,7 +77,7 @@ docker run --rm --name prohodnaya-https -p 8443:443 \
   caddy:2-alpine
 ```
 
-Когда появится `web`, в `reverse_proxy` ставят его порт, не API. Правило то же: страница, с которой вызывают камеру и геолокацию, открыта по HTTPS.
+Для камеры на планшете и телефоне в `reverse_proxy` ставят порт web (`43123`), не API. Правило то же: страница, с которой вызывают камеру, открыта по HTTPS.
 
 Остановка:
 

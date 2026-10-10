@@ -1,6 +1,5 @@
-# Стенд: postgres, keycloak, api, face.
+# Стенд: postgres, keycloak, api, face, web.
 # face — сборка Саши, порог 0.74, каталог не переносить.
-# web, если он уже есть в этом файле, оставлять.
 
 services:
   postgres:
@@ -72,6 +71,17 @@ services:
       FACE_LIVENESS_THRESHOLD: "0.8"
     volumes:
       - face_models:/models
+
+  web:
+    build:
+      context: ./apps/web
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001}
+        NEXT_PUBLIC_KEYCLOAK_URL: ${NEXT_PUBLIC_KEYCLOAK_URL:-http://localhost:8081}
+    ports:
+      - "43123:43123"
+    depends_on:
+      - api
 
 volumes:
   pgdata:
