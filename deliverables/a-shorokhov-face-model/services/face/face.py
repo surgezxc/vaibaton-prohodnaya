@@ -46,6 +46,23 @@ def cosine(left, right) -> float:
     return float(np.clip(np.dot(normalized_embedding(left), normalized_embedding(right)), -1, 1))
 
 
+def box_xywh(raw) -> dict | None:
+    """YOLO xyxy → один прямоугольник в пикселях кадра. Порог совпадения не трогает."""
+    coords = np.asarray(raw, dtype=np.float64).reshape(-1)
+    if coords.size < 4 or not np.all(np.isfinite(coords[:4])):
+        return None
+    x1, y1, x2, y2 = (float(coords[0]), float(coords[1]), float(coords[2]), float(coords[3]))
+    left = max(0, int(round(min(x1, x2))))
+    top = max(0, int(round(min(y1, y2))))
+    right = int(round(max(x1, x2)))
+    bottom = int(round(max(y1, y2)))
+    width = right - left
+    height = bottom - top
+    if width <= 0 or height <= 0:
+        return None
+    return {"x": left, "y": top, "width": width, "height": height}
+
+
 def overlap(left, right) -> float:
     a, b = np.asarray(left), np.asarray(right)
     size = np.maximum(0, np.minimum(a[2:], b[2:]) - np.maximum(a[:2], b[:2]))
@@ -80,6 +97,14 @@ class FaceService:
     def boxes(self, image):
         result = self.detector.predict(image, conf=self.confidence, imgsz=1280, device="cpu", verbose=False)[0]
         return result.boxes.xyxy.cpu().numpy()
+
+    def pixel_boxes(self, image) -> list[dict]:
+        found = []
+        for raw in self.boxes(image):
+            box = box_xywh(raw)
+            if box:
+                found.append(box)
+        return found
 
     def count_faces(self, image) -> int:
         return len(self.boxes(image))

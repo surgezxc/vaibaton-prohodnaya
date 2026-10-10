@@ -70,8 +70,11 @@ button:disabled {
 .screen .button-secondary:hover:not(:disabled) { background: #edf4ed; }
 .screen .button-row { display: flex; gap: 10px; flex-wrap: wrap; }
 .screen .full-width { width: 100%; }
-.screen .camera-stage { display: grid; place-items: center; aspect-ratio: 4 / 3; overflow: hidden; background: #e9eee7; border-radius: 12px; margin-bottom: 18px; }
+.screen .camera-stage { position: relative; display: grid; place-items: center; aspect-ratio: 4 / 3; overflow: hidden; background: #e9eee7; border-radius: 12px; margin-bottom: 18px; }
 .screen .camera-stage video { width: 100%; height: 100%; object-fit: cover; }
+.screen .camera-stage video.camera-idle { position: absolute; inset: 0; opacity: 0; pointer-events: none; }
+.screen .face-overlay { position: absolute; inset: 0; pointer-events: none; }
+.screen .face-box { position: absolute; border: 3px solid #e7ff4d; box-shadow: 0 0 0 1px #163024; border-radius: 2px; }
 .screen .camera-placeholder { color: var(--muted); padding: 20px; text-align: center; }
 .screen .camera-placeholder > span { font-size: 2.8rem; }
 .screen .camera-placeholder p { font-size: .85rem; margin: 12px 0 0; }

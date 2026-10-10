@@ -8,8 +8,10 @@ import {
   embedFace,
   FaceNotReady,
   FaceResultMissing,
+  locateFaces,
   normalizeImage,
   type CompareResult,
+  type FaceBox,
 } from "../face/client.js";
 import { formulatePrompt, getModel, modelAddedNumber } from "../model/index.js";
 import type { ChatMsg } from "../model/types.js";
@@ -21,10 +23,11 @@ export {
   FaceNotReady,
   FaceResultMissing,
   formulatePrompt,
+  locateFaces,
   modelAddedNumber,
   normalizeImage,
 };
-export type { CompareResult };
+export type { CompareResult, FaceBox };
 
 export async function completeText(messages: ChatMsg[]): Promise<{ id: string; text: string }> {
   const model = getModel();

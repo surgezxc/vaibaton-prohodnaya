@@ -3,7 +3,7 @@
 //
 // POST {FACE_SERVICE_URL}/count_faces
 //   { "image_base64": string }
-//   → { "count": number }
+//   → { "count": number, "boxes": [{ "x", "y", "width", "height" }] }
 //
 // POST {FACE_SERVICE_URL}/embed
 //   { "image_base64": string }
@@ -35,6 +35,21 @@ export type CompareResult = {
   match: boolean;
   live: boolean;
 };
+
+export type FaceBox = { x: number; y: number; width: number; height: number };
+
+function readBox(value: unknown): FaceBox | null {
+  if (!value || typeof value !== "object") return null;
+  const row = value as Record<string, unknown>;
+  const x = row.x;
+  const y = row.y;
+  const width = row.width;
+  const height = row.height;
+  if (typeof x !== "number" || typeof y !== "number" || typeof width !== "number" || typeof height !== "number") return null;
+  if (![x, y, width, height].every((item) => Number.isFinite(item))) return null;
+  if (x < 0 || y < 0 || width <= 0 || height <= 0) return null;
+  return { x, y, width, height };
+}
 
 function baseUrl(): string {
   return (process.env.FACE_SERVICE_URL ?? "").replace(/\/$/, "");
@@ -83,6 +98,19 @@ export async function countFaces(imageBase64: string): Promise<number> {
     throw new FaceResultMissing();
   }
   return count;
+}
+
+export async function locateFaces(imageBase64: string): Promise<{ count: number; boxes: FaceBox[] }> {
+  const payload = await postJson("/count_faces", { image_base64: imageBase64 });
+  if (!payload || typeof payload !== "object" || !("count" in payload)) throw new FaceResultMissing();
+  const count = (payload as { count: unknown }).count;
+  if (typeof count !== "number" || !Number.isInteger(count) || count < 0) throw new FaceResultMissing();
+  const raw = (payload as { boxes?: unknown }).boxes;
+  const boxes = Array.isArray(raw) ? raw.flatMap((item) => {
+    const box = readBox(item);
+    return box ? [box] : [];
+  }) : [];
+  return { count, boxes };
 }
 
 export async function embedFace(imageBase64: string): Promise<number[]> {

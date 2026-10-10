@@ -30,16 +30,25 @@ def main():
         response.raise_for_status()
         return response.json()
 
+    def assert_count(payload, expected):
+        assert payload["count"] == expected, payload
+        boxes = payload["boxes"]
+        assert isinstance(boxes, list) and len(boxes) == expected, payload
+        for box in boxes:
+            assert set(box) == {"x", "y", "width", "height"}, box
+            assert all(isinstance(box[key], int) and box[key] >= 0 for key in ("x", "y", "width", "height")), box
+            assert box["width"] > 0 and box["height"] > 0, box
+
     started = time.monotonic()
     photo = {"image_base64": base64.b64encode(ref.read_bytes()).decode()}
-    assert call("count_faces", photo) == {"count": 1}
+    assert_count(call("count_faces", photo), 1)
     embedding = call("embed", photo)["embedding"]
     assert len(embedding) == 512
     blank = encode(np.zeros((800, 800, 3), dtype=np.uint8))
     portrait = cv2.resize(read(ref), (600, 800))
     double = encode(np.hstack([portrait, np.full((800, 200, 3), 255, np.uint8), portrait]))
     for image, expected in [(blank, 0), (double, 2)]:
-        assert call("count_faces", {"image_base64": image}) == {"count": expected}
+        assert_count(call("count_faces", {"image_base64": image}), expected)
         refused = requests.post(args.url + "/embed", json={"image_base64": image}, timeout=30)
         assert refused.status_code == 422
         result = call("compare", {"embedding": embedding, "image_base64": image})

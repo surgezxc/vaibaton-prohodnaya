@@ -51,7 +51,8 @@ def run(request, operation, payload):
         with request.app.state.lock:
             service = request.app.state.face
             if operation == "count_faces":
-                return {"count": service.count_faces(image)}
+                boxes = service.pixel_boxes(image)
+                return {"count": len(boxes), "boxes": boxes}
             if operation == "embed":
                 return {"embedding": service.embed(image)}
             return service.compare(payload.embedding, image)

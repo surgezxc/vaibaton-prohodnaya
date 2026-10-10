@@ -7,6 +7,7 @@ import { writeJournal } from "../journal.js";
 import type { ApiApp, Direction } from "../types.js";
 import { verifyDeviceSignature } from "./devices.js";
 import { decidePass } from "./decide.js";
+import { FaceNotReady, locateFaces, normalizeImage } from "./outbound.js";
 
 function parseDirection(value: unknown): Direction | null {
   if (value === "in" || value === "вход") return "in";
@@ -21,6 +22,22 @@ function ttlSeconds(): number {
 }
 
 export function registerAttempts(app: ApiApp, pool: pg.Pool): void {
+  app.post("/attempts/face-boxes", requireRoles("gate"), async (c) => {
+    const body = await readJson(c);
+    if (!body) return denyJson(c, 400, "Некорректный запрос.");
+    const image = asString(body.image_base64);
+    if (!image) return denyJson(c, 400, "Нет кадра с проходной.");
+    const normalized = normalizeImage(image);
+    if (normalized.length < 8 || normalized.length > 8_000_000) return denyJson(c, 400, "Нет кадра с проходной.");
+    try {
+      const located = await locateFaces(normalized);
+      return c.json({ count: located.count, boxes: located.boxes });
+    } catch (error) {
+      if (error instanceof FaceNotReady) return denyJson(c, 503, "Распознавание лиц не готово. Проход невозможен.");
+      return c.json({ count: 0, boxes: [] });
+    }
+  });
+
   app.get("/attempts/:id", requireRoles("gate", "worker"), async (c) => {
     const id = c.req.param("id");
     if (!isUuid(id)) return denyJson(c, 404, "Попытка не найдена.");

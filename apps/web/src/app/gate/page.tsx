@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
 import { useAttemptStatus } from "@/hooks/use-attempt-status";
 import { imageFileToFrame } from "@/lib/image-frame";
-import { CameraPreview } from "@/components/camera-preview";
+import { CameraPreview, type FaceBox } from "@/components/camera-preview";
 import { ScreenShell, Status } from "@/components/screen-shell";
 import { useAuth } from "@/components/auth-provider";
 import { apiRequest, errorMessage, type Attempt, type Decision } from "@/lib/pass-api";
@@ -99,8 +99,17 @@ export default function GatePage() {
     finally { if (version === operation.current) { lock.current = false; setBusy(false); } }
   }
 
+  async function locateLiveFace(image: string): Promise<FaceBox[]> {
+    try {
+      const result = await apiRequest<{ boxes?: FaceBox[] }>("/attempts/face-boxes", await auth.token(), { image_base64: image });
+      return Array.isArray(result.boxes) ? result.boxes : [];
+    } catch {
+      return [];
+    }
+  }
+
   return <ScreenShell role="gate" title="Контроль прохода" description="Выберите направление и откройте попытку для рабочего.">
-    {decision && <section className="gate-outcome"><Status tone={decision.decision === "deny" ? "error" : "neutral"} title={decision.decision === "allow" ? "Проход разрешён сервером" : "Проход не разрешён"}>{decision.reason_human || decision.reason}</Status></section>}
+    {decision && <section className="gate-outcome" role={decision.decision === "deny" ? "alert" : undefined}><Status tone={decision.decision === "deny" ? "error" : "neutral"} title={decision.decision === "allow" ? "Проход разрешён сервером" : "Проход не разрешён"}>{decision.reason_human || decision.reason}</Status></section>}
     <div className="gate-grid">
       <section className="panel">
         <div className="section-heading"><h2>Попытка прохода</h2><span className="badge">{busy ? "Запрос…" : "Серверный QR"}</span></div>
@@ -120,7 +129,7 @@ export default function GatePage() {
         </div>
         <p className="hint">Скрытие вкладки попытку не отменяет. Отмена только кнопкой «Закрыть QR». Если сеть пропала, попытка живёт до серверного срока.</p>
       </section>
-      <CameraPreview enabled={canPreview} disabledReason={cameraDisabledReason} key={attempt?.attempt_id || "idle"} title="Камера КПП" description={canCapture ? "Телефон подтвердил попытку. Нажмите «Включить камеру», затем «Снять кадр» и отправьте его на проверку." : "Предпросмотр можно включить заранее, чтобы разрешить доступ к камере. Кнопка «Снять кадр» появится после подтверждения QR рабочим на телефоне."} onCapture={canCapture ? setFrame : undefined} />
+      <CameraPreview enabled={canPreview} disabledReason={cameraDisabledReason} key={attempt?.attempt_id || "idle"} title="Камера КПП" description={canCapture ? "Телефон подтвердил попытку. Жёлтая рамка — камера видит лицо. Снимите этот же кадр и отправьте его на проверку." : "Предпросмотр можно включить заранее. Жёлтая рамка показывает, что камера видит лицо. Кнопка «Снять кадр» появится после подтверждения QR рабочим на телефоне."} locateFaces={allowed ? locateLiveFace : undefined} onCapture={canCapture ? setFrame : undefined} />
     </div>
     <section className="panel result-panel">
       <label className="file-label">Загрузить кадр JPEG / PNG
