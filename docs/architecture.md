@@ -134,7 +134,7 @@ docs/local-model.md
 docs/limits.md
 docs/ai-usage.md
 .env.example
-docker-compose.yml
+docker-compose.yml   web, api, postgres, keycloak, face
 Первый пакет/     как есть, не в код зашивать как единственных людей
 ```
 
@@ -147,5 +147,7 @@ docker-compose.yml
 5. Доки 5.5, 15 коммитов от всех, репетиция правки 10–15 мин.
 
 Модули API: персонал, проходы, смены, перемещения, аналитика, помощник — отдельно, чтобы не писать в один файл вдвоём.
+
+Кто за что: [roles.md](roles.md).
 
 Keycloak — в стенде: организаторы сказали, его используют. Passkey не делаем (ваш QR). ngrok — только если телефон не видит API.
