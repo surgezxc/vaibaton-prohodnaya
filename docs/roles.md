@@ -9,6 +9,12 @@
 | **a-shorokhov** | Лица и модель | `services/face`, `prompts/`, слой модели в API по контракту | 0/1/2+ лиц; 1:1 InsightFace; живое лицо на проходе; GigaChat + Ollama `qwen3:4b`; цифры не выдумывает |
 | **alisondl333-oss** | Админ, руководитель, стенд | `apps/web` `/admin` `/manager`; `docker-compose.yml`; `docs/run.md` и остальные 5.5 | Заведение + эталон; журнал UI; кто внутри; рисунок зон; тепло посещений; фильтры; стенд по инструкции |
 
+Брифы, с которых стартовать (Владислав — схема и этот файл, отдельный tasks не пишем):
+
+- [Demtory — `/gate` и `/phone`](tasks-demtory.md)
+- [a-shorokhov — лица и модель](tasks-shorokhov.md)
+- [alisondl333-oss — `/admin`, `/manager`, compose, доки 5.5](tasks-alison.md)
+
 Общее в первый час: контракт API из [схемы](architecture.md) не менять без всех четверых. `docker-compose` правит **alisondl333-oss**, сервисы внутрь просят остальные.
 
 ## Порядок (все сразу, не по очереди)
