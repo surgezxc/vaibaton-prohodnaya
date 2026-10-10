@@ -1,0 +1,121 @@
+# Стенд: postgres, keycloak, api, face.
+# face — сборка Саши, порог 0.74, каталог не переносить.
+# web, если он уже есть в этом файле, оставлять.
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-prohodnaya}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Заполните POSTGRES_PASSWORD в .env}
+      POSTGRES_DB: ${POSTGRES_DB:-prohodnaya}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?Заполните KEYCLOAK_ADMIN_PASSWORD в .env}
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: ${POSTGRES_USER:-prohodnaya}
+      KC_DB_PASSWORD: ${POSTGRES_PASSWORD:?Заполните POSTGRES_PASSWORD в .env}
+      KC_HTTP_ENABLED: "true"
+      KC_HTTPS_PORT: 8443
+      KC_HTTPS_CERTIFICATE_FILE: /run/certs/local.pem
+      KC_HTTPS_CERTIFICATE_KEY_FILE: /run/certs/local-key.pem
+      KC_HOSTNAME: ${NEXT_PUBLIC_KEYCLOAK_URL:-https://localhost:8443}
+      KC_HOSTNAME_STRICT: "false"
+      KC_HEALTH_ENABLED: "true"
+    volumes:
+      - ./infra/keycloak:/opt/keycloak/data/import:ro
+      - ./certs:/run/certs:ro
+    ports:
+      - "${KEYCLOAK_HTTP_PORT:-8081}:8080"
+      - "${KEYCLOAK_HTTPS_PORT:-8443}:8443"
+      - "${KEYCLOAK_MANAGEMENT_PORT:-9000}:9000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  face:
+    build: ./deliverables/a-shorokhov-face-model/services/face
+    environment:
+      FACE_MODEL_ROOT: /models
+      FACE_MATCH_THRESHOLD: "0.74"
+      FACE_DETECT_CONFIDENCE: "0.25"
+      FACE_LIVENESS_THRESHOLD: "0.8"
+    volumes:
+      - face_models:/models
+
+  api:
+    build: ./apps/api
+    environment:
+      PORT: 3001
+      DATABASE_URL: postgres://${POSTGRES_USER:-prohodnaya}:${POSTGRES_PASSWORD:?Заполните POSTGRES_PASSWORD в .env}@postgres:5432/${POSTGRES_DB:-prohodnaya}
+      KEYCLOAK_ISSUER: ${KEYCLOAK_ISSUER:-https://localhost:8443/realms/prohodnaya}
+      KEYCLOAK_JWKS_URL: http://keycloak:8080/realms/prohodnaya/protocol/openid-connect/certs
+      FACE_SERVICE_URL: http://face:8000
+      MODEL_PROVIDER: ${MODEL_PROVIDER:-ollama}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3:4b}
+      GIGACHAT_API_KEY: ${GIGACHAT_API_KEY:-}
+      GIGACHAT_MODEL: ${GIGACHAT_MODEL:-GigaChat}
+      ATTEMPT_TTL_SECONDS: ${ATTEMPT_TTL_SECONDS:-25}
+      LOCATION_INTERVAL_SECONDS: ${LOCATION_INTERVAL_SECONDS:-60}
+      WEB_ORIGIN: ${WEB_ORIGIN:-https://localhost:3000}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "${API_PORT:-3001}:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      keycloak:
+        condition: service_started
+      face:
+        condition: service_started
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ./apps/web
+      args:
+        NEXT_PUBLIC_KEYCLOAK_URL: ${NEXT_PUBLIC_KEYCLOAK_URL:-https://localhost:8443}
+        NEXT_PUBLIC_KEYCLOAK_REALM: ${NEXT_PUBLIC_KEYCLOAK_REALM:-prohodnaya}
+        NEXT_PUBLIC_KEYCLOAK_CLIENT_ID: ${NEXT_PUBLIC_KEYCLOAK_CLIENT_ID:-web}
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      API_INTERNAL_URL: http://api:3001
+    volumes:
+      - ./certs:/run/certs:ro
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    depends_on:
+      api:
+        condition: service_started
+      keycloak:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('https').get('https://127.0.0.1:3000/api/health',{rejectUnauthorized:false},r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 8
+      start_period: 20s
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  face_models:
