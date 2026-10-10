@@ -47,8 +47,8 @@ Realm импортируется из `infra/keycloak/prohodnaya-realm.json`. П
 
 | Логин | Роль | Куда |
 | --- | --- | --- |
-| `admin` | `admin` | `/admin` — заведение, эталон, точки плана |
-| `manager` | `manager` | `/manager` — кто внутри, тепло, помощник |
+| `admin` | `admin` | `/admin` — заведение, эталон; `/admin/zones` — план, точки привязки, границы зон |
+| `manager` | `manager` | `/manager` — кто внутри, теплокарта, маршруты, отчёт, помощник |
 | `gate` | `gate` | `/gate` — открывает QR |
 | `worker` | `worker` | `/phone` — сканирует QR |
 | `worker2` | `worker` | второй телефон, чтобы проверить «чужое устройство» |

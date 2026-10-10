@@ -2,10 +2,13 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { LoginCard } from "@/components/login-card";
+import { ManagerAnalytics, moscowToday, type Period } from "@/components/manager-analytics";
+import { ManagerAssistant } from "@/components/manager-assistant";
 import { Panel, RoleWarning, Shell } from "@/components/shell";
 import { useSession } from "@/components/use-session";
 import { apiRequest, asArray, offlineReason, serverReason } from "@/lib/api";
 import { formatWhen } from "@/lib/format";
+import type { Session } from "@/lib/session";
 
 type Inside = {
   person_id: string;
@@ -19,17 +22,29 @@ export default function ManagerPage() {
   return (
     <Shell current="/manager" session={session} onLogout={logout}>
       <p className="text-xs font-bold tracking-widest text-emerald-900 uppercase">Руководитель</p>
-      <h1 className="mt-2 text-3xl font-semibold tracking-tight">Кто на объекте</h1>
-      <p className="mt-2 mb-5 max-w-2xl text-stone-600">Открытые смены: человек и время входа. Пустой список значит, что внутри никого.</p>
+      <h1 className="mt-2 text-3xl font-semibold tracking-tight">Обзор объекта</h1>
+      <p className="mt-2 mb-5 max-w-2xl text-stone-600">Кто внутри сейчас, посещения зон, маршруты и смены за период. Пустой ответ значит, что данных нет.</p>
       {session ? (
-        <>
-          <RoleWarning session={session} role="manager" label="руководитель" />
-          <NowBoard token={session.token} />
-        </>
+        <ManagerDesk token={session.token} session={session} />
       ) : (
         <LoginCard username="manager" onSuccess={login} />
       )}
     </Shell>
+  );
+}
+
+function ManagerDesk({ token, session }: { token: string; session: Session }) {
+  const today = moscowToday();
+  const [period, setPeriod] = useState<Period>({ from: today, to: today });
+  return (
+    <div className="grid gap-4">
+      <RoleWarning session={session} role="manager" label="руководитель" />
+      <div className="grid gap-4 lg:grid-cols-2">
+        <NowBoard token={token} />
+        <ManagerAssistant token={token} period={period} />
+      </div>
+      <ManagerAnalytics token={token} onPeriod={setPeriod} />
+    </div>
   );
 }
 

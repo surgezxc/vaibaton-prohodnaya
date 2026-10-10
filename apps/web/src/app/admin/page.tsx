@@ -219,9 +219,14 @@ function AdminDesk({ session }: { session: Session }) {
       <Panel
         title="Список"
         aside={
-          <Link href="/admin/journal" className="text-sm font-semibold text-emerald-900">
-            Журнал
-          </Link>
+          <div className="flex gap-3 text-sm font-semibold">
+            <Link href="/admin/zones" className="text-emerald-900">
+              План и зоны
+            </Link>
+            <Link href="/admin/journal" className="text-emerald-900">
+              Журнал
+            </Link>
+          </div>
         }
       >
         {people === null ? <p className="text-sm text-stone-600">Загружаем список…</p> : null}
